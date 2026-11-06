@@ -1,7 +1,9 @@
-import { useMemo } from 'react'
-import { ReactFlow, Background, Controls, type Node } from '@xyflow/react'
+import { useMemo, useRef } from 'react'
+import { ReactFlow, Background, Controls, type Node, type ReactFlowInstance } from '@xyflow/react'
 import type { TreeEdge, TreeNode } from '../../../shared/types'
 import { useLayout } from '../layout/useLayout'
+import { useNodes } from '../layout/useNodes'
+import { useFitView } from '../layout/useFitView'
 import { useDrag } from '../drag/useDrag'
 import { useContent } from '../content/useContent'
 import { NodeCard } from './NodeCard'
@@ -17,7 +19,10 @@ export function Canvas({ tree, edges, workspace }: {
   edges: readonly TreeEdge[]
   workspace: string
 }) {
-  const { flowRef, nodes, setNodes, onNodesChange, layout } = useLayout(tree, workspace)
+  const flowRef = useRef<ReactFlowInstance | null>(null)
+  const { expanded, toggle, layout } = useLayout(tree)
+  const { nodes, setNodes, onNodesChange } = useNodes(tree, layout, expanded, toggle)
+  useFitView(flowRef, expanded, workspace)
   const drag = useDrag(
     layout?.parents ?? new Map<string, string>(),
     layout?.radii ?? new Map<string, number>(),
