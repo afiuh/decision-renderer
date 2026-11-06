@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { overlaps, pushRight } from './collision'
+import { resolveCollisions } from './collision'
 import { ReactFlow, Background, Controls, useNodesState, type Node, type Edge, type ReactFlowInstance } from '@xyflow/react'
 import dagre from '@dagrejs/dagre'
 import { NodeCard } from './NodeCard'
@@ -84,21 +84,9 @@ export function Canvas({ tree, edges, onOpen }: {
   // 树/展开变化时重置节点位置
   useEffect(() => { setNodes(computedNodes) }, [computedNodes, setNodes])
 
-  // 拖拽结束：推挤重叠的节点
-  const onNodeDragStop = useCallback((_: unknown, moved: Node) => {
-    setNodes(current => {
-      const next = [...current]
-      const movedBox = { id: moved.id, x: moved.position.x, y: moved.position.y, w: moved.width ?? 180, h: moved.height ?? 56 }
-      for (let index = 0; index < next.length; index += 1) {
-        const item = next[index]
-        if (item.id === moved.id) continue
-        const box = { id: item.id, x: item.position.x, y: item.position.y, w: item.width ?? 180, h: item.height ?? 56 }
-        if (overlaps(movedBox, box)) {
-          next[index] = { ...item, position: pushRight(movedBox, box) }
-        }
-      }
-      return next
-    })
+  // 拖拽结束：官方 resolveCollisions（多轮迭代，沿小轴推开）
+  const onNodeDragStop = useCallback(() => {
+    setNodes(current => resolveCollisions(current, { maxIterations: 50, overlapThreshold: 0.5, margin: 8 }))
   }, [setNodes])
 
   return (
