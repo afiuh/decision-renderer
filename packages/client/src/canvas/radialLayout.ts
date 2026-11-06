@@ -18,7 +18,7 @@ export function radialLayout(tree: TreeNode, expanded: ReadonlySet<string>): Map
 
     // 半径 = 占位 × 间距 / 2π（周长 = 占位总和）→ 子树大，半径线自然延长
     const totalOcc = children.reduce((sum, child) => sum + occupancy(child, expanded), 0)
-    const r = Math.max(200, (totalOcc * 90) / (2 * Math.PI))
+    const r = Math.max(140, (totalOcc * 200) / (2 * Math.PI))
 
     // 子节点全圆分布（角度按占位比例）
     let angle = -Math.PI / 2
