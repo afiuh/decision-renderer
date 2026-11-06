@@ -197,8 +197,8 @@ export default function App() {
   );
 
   const signature = useMemo(
-    () => `${workspace}|${expanded.size}|${flatten(tree).length}|${sizes.size}`,
-    [workspace, expanded, tree, sizes],
+    () => `${workspace}|${flatten(tree).length}`,
+    [workspace, tree],
   );
 
   return (
