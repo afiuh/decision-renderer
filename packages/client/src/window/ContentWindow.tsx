@@ -30,7 +30,7 @@ export function ContentWindow({ node, onClose, onSaved }: {
 
   return (
     <Rnd
-      default={{ x: 620, y: 80, width: 560, height: 460 }}
+      default={{ x: Math.max(320, window.innerWidth - 600), y: 80, width: 560, height: 460 }}
       minWidth={320}
       minHeight={200}
       className="content-window"
