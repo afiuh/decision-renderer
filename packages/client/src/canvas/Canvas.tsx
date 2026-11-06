@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ReactFlow, Background, Controls, type Node, type Edge, type ReactFlowInstance } from '@xyflow/react'
+import { overlaps, pushRight } from './collision'
+import { ReactFlow, Background, Controls, useNodesState, type Node, type Edge, type ReactFlowInstance } from '@xyflow/react'
 import dagre from '@dagrejs/dagre'
 import { NodeCard } from './NodeCard'
 import type { TreeEdge, TreeNode } from '../../../shared/types'
@@ -62,11 +63,12 @@ export function Canvas({ tree, edges, onOpen }: {
     })
   }, [])
 
-  const { nodes, flowEdges } = useMemo(() => {
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
+  const { computedNodes, flowEdges } = useMemo(() => {
     if (tree === null) return { nodes: [] as Node[], flowEdges: [] as Edge[] }
     const visible = visibleNodes(tree, expanded)
     const positions = layout(visible, edges)
-    const nodes: Node[] = visible.map(node => ({
+    const built: Node[] = visible.map(node => ({
       id: node.id,
       type: 'card',
       position: positions.get(node.id) ?? { x: 0, y: 0 },
@@ -76,14 +78,36 @@ export function Canvas({ tree, edges, onOpen }: {
     const flowEdges: Edge[] = edges
       .filter(edge => edge.from !== '__root__' && ids.has(edge.from) && ids.has(edge.to))
       .map(edge => ({ id: `${edge.from}->${edge.to}`, source: edge.from, target: edge.to, type: 'smoothstep' }))
-    return { nodes, flowEdges }
+    return { computedNodes: built, flowEdges }
   }, [tree, edges, expanded, toggle])
+
+  // 树/展开变化时重置节点位置
+  useEffect(() => { setNodes(computedNodes) }, [computedNodes, setNodes])
+
+  // 拖拽结束：推挤重叠的节点
+  const onNodeDragStop = useCallback((_: unknown, moved: Node) => {
+    setNodes(current => {
+      const next = [...current]
+      const movedBox = { id: moved.id, x: moved.position.x, y: moved.position.y, w: moved.width ?? 180, h: moved.height ?? 56 }
+      for (let index = 0; index < next.length; index += 1) {
+        const item = next[index]
+        if (item.id === moved.id) continue
+        const box = { id: item.id, x: item.position.x, y: item.position.y, w: item.width ?? 180, h: item.height ?? 56 }
+        if (overlaps(movedBox, box)) {
+          next[index] = { ...item, position: pushRight(movedBox, box) }
+        }
+      }
+      return next
+    })
+  }, [setNodes])
 
   return (
     <ReactFlow
       onInit={instance => { flowRef.current = instance }}
 
       nodes={nodes}
+      onNodesChange={onNodesChange}
+      onNodeDragStop={onNodeDragStop}
       edges={flowEdges}
       nodeTypes={nodeTypes}
       onNodeClick={(_, node) => onOpen(node.id)}
