@@ -144,12 +144,14 @@ export function Canvas({ tree, edges, onOpen, workspace }: {
     const parentId = parents.get(moved.id)
     const radius = radii.get(moved.id)
     if (parentId === undefined || radius === undefined) return
-    setNodes(current => {
-      const parent = current.find(item => item.id === parentId)
-      if (parent === undefined) return current
-      const angle = Math.atan2(moved.position.y - parent.position.y, moved.position.x - parent.position.x)
-      const position = { x: parent.position.x + radius * Math.cos(angle), y: parent.position.y + radius * Math.sin(angle) }
-      return current.map(item => item.id === moved.id ? { ...item, position } : item)
+    queueMicrotask(() => {
+      setNodes(current => {
+        const parent = current.find(item => item.id === parentId)
+        if (parent === undefined) return current
+        const angle = Math.atan2(moved.position.y - parent.position.y, moved.position.x - parent.position.x)
+        const position = { x: parent.position.x + radius * Math.cos(angle), y: parent.position.y + radius * Math.sin(angle) }
+        return current.map(item => item.id === moved.id ? { ...item, position } : item)
+      })
     })
   }, [parents, radii, setNodes])
 
