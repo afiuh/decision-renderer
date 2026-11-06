@@ -3,9 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts"
+    "dev": "tsx watch src/index.ts",
+    "mcp": "tsx src/mcp.ts"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "chokidar": "^4.0.0",
     "fastify": "^5.0.0",
     "ws": "^8.18.0"
