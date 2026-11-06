@@ -254,6 +254,18 @@ body {
 .group-actions button:hover { border-color: #9db1c9; }
 
 .project-list { list-style: none; margin: 0; padding: 4px; }
+.project-row { display: flex; align-items: center; gap: 2px; }
+.project-row .project { flex: 1; min-width: 0; }
+.row-actions { display: flex; gap: 2px; opacity: 0; transition: opacity .12s; }
+.project-row:hover .row-actions { opacity: 1; }
+.row-action {
+  font: inherit; font-size: 11px;
+  padding: 2px 5px;
+  border: 1px solid #d8e0ea; border-radius: 3px;
+  background: #fff; color: #5a6f88; cursor: pointer;
+}
+.row-action:hover { border-color: #9db1c9; color: #24313f; }
+.row-action.danger:hover { border-color: #e2a3a3; color: #c0392b; }
 .project-list .empty { padding: 12px; color: #8a9aad; font-size: 12px; }
 
 .project {

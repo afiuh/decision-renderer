@@ -11,6 +11,8 @@ interface Props {
   openPaths: string[];
   activePath: string | null;
   onOpen: (path: string) => void;
+  onClose: (path: string) => void;
+  onRemove: (path: string) => void;
   onImport: () => void;
   onCreate: () => void;
 }
@@ -28,7 +30,7 @@ function Arrow({ direction }: { direction: "left" | "right" }) {
   );
 }
 
-export function Sidebar({ projects, openPaths, activePath, onOpen, onImport, onCreate }: Props) {
+export function Sidebar({ projects, openPaths, activePath, onOpen, onClose, onRemove, onImport, onCreate }: Props) {
   const [width, setWidth] = useState(230);
   const [collapsed, setCollapsed] = useState(false);
   const dragging = useRef(false);
@@ -69,7 +71,7 @@ export function Sidebar({ projects, openPaths, activePath, onOpen, onImport, onC
             {projects.map((p) => {
               const opened = openPaths.includes(p.path);
               return (
-                <li key={p.path}>
+                <li key={p.path} className="project-row">
                   <button
                     className={`project${activePath === p.path ? " active" : ""}${p.exists ? "" : " missing"}`}
                     onClick={() => onOpen(p.path)}
@@ -79,6 +81,16 @@ export function Sidebar({ projects, openPaths, activePath, onOpen, onImport, onC
                     {opened && <span className="badge">已打开</span>}
                     {!p.exists && <span className="badge warn">缺失</span>}
                   </button>
+                  <span className="row-actions">
+                    {opened && (
+                      <button className="row-action" title="关闭项目（保留在列表）" onClick={() => onClose(p.path)}>
+                        关
+                      </button>
+                    )}
+                    <button className="row-action danger" title="从列表移除（不删磁盘文件）" onClick={() => onRemove(p.path)}>
+                      删
+                    </button>
+                  </span>
                 </li>
               );
             })}

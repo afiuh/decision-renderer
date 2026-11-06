@@ -96,6 +96,26 @@ export default function App() {
     return map;
   }, [projects]);
 
+  const closeProject = useCallback(
+    (path: string) => {
+      const i = openPaths.indexOf(path);
+      if (i >= 0) closeWorkspace(i);
+    },
+    [openPaths, closeWorkspace],
+  );
+
+  const removeProject = useCallback(
+    async (path: string) => {
+      if (!window.confirm(`从列表移除「${names[path] ?? path}」？\n只移除记录，不删除磁盘文件。`)) return;
+      await fetch(`/api/projects?path=${encodeURIComponent(path)}`, { method: "DELETE" });
+      loadProjects();
+      const session = await fetch("/api/session").then((r) => r.json());
+      setOpenPaths(session.open ?? []);
+      setActive(session.active ?? 0);
+    },
+    [names, loadProjects],
+  );
+
   const onCreateChild = useCallback(() => {
     if (!activePath) return;
     handles.current[activePath]?.current?.createChild();
@@ -127,6 +147,8 @@ export default function App() {
           openPaths={openPaths}
           activePath={activePath}
           onOpen={openProject}
+          onClose={closeProject}
+          onRemove={removeProject}
           onImport={() => setPicker("import")}
           onCreate={() => setPicker("create")}
         />
