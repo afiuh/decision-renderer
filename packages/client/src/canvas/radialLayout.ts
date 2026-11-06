@@ -1,4 +1,4 @@
-/** 圆形扩散布局（词块树方式：每个节点展开后，子节点围绕它全圆 360°，半径按占位递增）。 */
+/** 圆形扩散布局：每个节点 360° 展开子节点；父节点到上一级的距离 = 子节点圆半径 + 节点尺寸（延长，防重叠）。 */
 import type { TreeNode } from '../../../shared/types'
 
 export interface LayoutResult {
@@ -7,9 +7,14 @@ export interface LayoutResult {
   radii: Map<string, number>
 }
 
-function occupancy(node: TreeNode, expanded: ReadonlySet<string>): number {
-  if (!expanded.has(node.id)) return 1
-  return 1 + node.children.reduce((sum, child) => sum + occupancy(child, expanded), 0)
+const NODE = 140         // 节点尺寸（卡片宽）
+const GAP = 40           // 节点之间的间隙
+
+/** 节点的"圆半径"：它的子节点圆半径 + 节点尺寸（递归，延长）。 */
+function circleRadius(node: TreeNode, expanded: ReadonlySet<string>): number {
+  if (!expanded.has(node.id) || node.children.length === 0) return NODE
+  const maxChild = Math.max(...node.children.map(child => circleRadius(child, expanded)))
+  return maxChild + NODE + GAP
 }
 
 export function radialLayout(tree: TreeNode, expanded: ReadonlySet<string>): LayoutResult {
@@ -24,14 +29,12 @@ export function radialLayout(tree: TreeNode, expanded: ReadonlySet<string>): Lay
     const children = node.children
     if (children.length === 0) return
 
-    // 半径 = 占位 × 间距 / 2π（子节点越多/越深，圆越大；子节点在父节点的圆外）
-    const totalOcc = children.reduce((sum, child) => sum + occupancy(child, expanded), 0)
-    const r = Math.max(150, (totalOcc * 200) / (2 * Math.PI))
+    // 半径 = 子节点的最大圆半径 + 节点尺寸 + 间隙（延长，确保子节点的圆不覆盖祖先）
+    const r = Math.max(NODE + GAP, Math.max(...children.map(child => circleRadius(child, expanded))) + NODE + GAP)
 
-    // 全圆（360°），角度按占位比例
     let angle = -Math.PI / 2
     for (const child of children) {
-      const span = (2 * Math.PI) * occupancy(child, expanded) / totalOcc
+      const span = (2 * Math.PI) / children.length
       const theta = angle + span / 2
       angle += span
       radii.set(child.id, r)
@@ -39,16 +42,15 @@ export function radialLayout(tree: TreeNode, expanded: ReadonlySet<string>): Lay
     }
   }
 
-  // 根在中心（有子节点的根）
+  // 根在中心
   const roots = tree.children.filter(root => root.children.length > 0)
   if (roots.length === 1) {
     place(roots[0], 0, 0, null)
   } else if (roots.length > 1) {
-    const totalOcc = roots.reduce((sum, root) => sum + occupancy(root, expanded), 0)
-    const R = Math.max(240, (totalOcc * 200) / (2 * Math.PI))
+    const R = Math.max(NODE + GAP, Math.max(...roots.map(root => circleRadius(root, expanded))) + NODE + GAP)
     let angle = -Math.PI / 2
     for (const root of roots) {
-      const span = (2 * Math.PI) * occupancy(root, expanded) / totalOcc
+      const span = (2 * Math.PI) / roots.length
       const theta = angle + span / 2
       angle += span
       radii.set(root.id, R)
