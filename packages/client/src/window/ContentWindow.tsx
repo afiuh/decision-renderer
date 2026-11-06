@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Rnd } from 'react-rnd'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import CodeMirror from '@uiw/react-codemirror'
+import { markdown } from '@codemirror/lang-markdown'
 import type { NodeContent } from '../../../shared/types'
 
 export function ContentWindow({ node, onClose, onSaved }: {
@@ -51,7 +53,7 @@ export function ContentWindow({ node, onClose, onSaved }: {
       </div>
       <div className="window-body">
         {editing
-          ? <textarea className="editor" value={text} onChange={event => setText(event.target.value)} />
+          ? <CodeMirror value={text} onChange={setText} extensions={[markdown()]} height="100%" basicSetup={{ lineNumbers: false }} />
           : <Markdown remarkPlugins={[remarkGfm]}>{node.markdown}</Markdown>}
       </div>
     </Rnd>

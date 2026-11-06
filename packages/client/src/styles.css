@@ -22,3 +22,5 @@ body { background: #fff; color: #000; font: 14px/1.6 system-ui, sans-serif; }
 .toolbar button:disabled { color: #999; cursor: default; }
 
 .node-dirty { box-shadow: 0 0 0 2px #bf8700; }
+.cm-editor { height: 100%; font-size: 13px; }
+.cm-scroller { overflow: auto; }
