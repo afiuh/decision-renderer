@@ -54,6 +54,10 @@ export async function listProjects() {
 export async function addProject(dir: string, name?: string) {
   const abs = path.resolve(dir);
   if (!(await isDir(abs))) throw new Error("目录不存在: " + abs);
+  const entries = await readdir(abs);
+  if (!entries.some((n) => n.endsWith(".md"))) {
+    throw new Error("这个目录里没有 .md 节点，不是决策网络目录（应选包含 决策网络.md / 核心战略.md 的那一层）");
+  }
   const cfg = await loadConfig();
   const existing = cfg.projects.find((p) => p.path === abs);
   if (existing) return existing;
