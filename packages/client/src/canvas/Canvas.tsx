@@ -254,6 +254,17 @@ function CanvasInner({ project, tree, onSelect, handleRef }: Props) {
     [nodes, project],
   );
 
+  if (tree.length === 0) {
+    return (
+      <div className="canvas-empty">
+        <p>没有可显示的节点</p>
+        <p className="hint">
+          这个目录里没有根节点（.md），或者文件树还在加载。根节点必须放在项目根目录，和 <code>X-子节点/</code> 并列。
+        </p>
+      </div>
+    );
+  }
+
   return (
     <CanvasContext.Provider value={actions}>
       <CanvasView
