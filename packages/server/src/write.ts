@@ -42,7 +42,7 @@ export async function createNode(root: string, parentId: string, title: string) 
   if (await exists(fileAbs)) throw new Error("同名节点已存在");
 
   const parentRel = path.relative(dirAbs, parentAbs).split(path.sep).join("/");
-  const body = `# ${title}\n\n**父级**：[${parentTitle}](${parentRel})\n\n## 约束\n\n## 边界\n\n## 验证\n`;
+  const body = `# ${title}\n\n**父级**：[${parentTitle}](${parentRel})\n\n## 要做什么\n\n## 为什么要做\n\n## 怎么做\n\n## 如何验证自己做对了\n`;
   await writeFile(fileAbs, body, "utf8");
   return dirRel + "/" + title;
 }
