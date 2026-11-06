@@ -20,3 +20,5 @@ body { background: #fff; color: #000; font: 14px/1.6 system-ui, sans-serif; }
 .toolbar { position: absolute; top: 12px; left: 12px; z-index: 10; display: flex; gap: 8px; }
 .toolbar button { padding: 6px 10px; border: 1px solid #d0d0d0; background: #fff; border-radius: 6px; font-size: 12px; cursor: pointer; }
 .toolbar button:disabled { color: #999; cursor: default; }
+
+.node-dirty { box-shadow: 0 0 0 2px #bf8700; }

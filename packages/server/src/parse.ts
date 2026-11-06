@@ -1,6 +1,7 @@
 import { readdir, readFile, writeFile, stat, mkdir } from 'node:fs/promises'
 import { join, relative, dirname } from 'node:path'
 import type { TreeNode, TreeEdge, NodeContent } from '../../shared/types.ts'
+import { dirtyFiles } from './git.ts'
 
 /** 决策网络根目录（可被环境变量覆盖）。 */
 export const ROOT = process.env.DECISIONS_ROOT ?? '/mnt/data/AI自由工作区/dshiunx/decisions'
@@ -24,6 +25,7 @@ function statusOf(markdown: string): TreeNode['status'] {
 export async function parseTree(dir: string = ROOT): Promise<{ tree: TreeNode; edges: TreeEdge[] }> {
   const edges: TreeEdge[] = []
 
+  const dirty = await dirtyFiles()
   const walk = async (folder: string, baseName: string): Promise<TreeNode[]> => {
     const entries = await readdir(folder, { withFileTypes: true })
     const nodes: TreeNode[] = []
@@ -44,6 +46,7 @@ export async function parseTree(dir: string = ROOT): Promise<{ tree: TreeNode; e
         title: titleOf(markdown, baseName === '' ? name : baseName),
         path: file,
         status: statusOf(markdown),
+        dirty: dirty.has(id),
         children,
       }
       nodes.push(node)

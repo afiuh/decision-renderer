@@ -4,6 +4,8 @@ export interface TreeNode {
   readonly title: string
   readonly path: string
   readonly status: 'done' | 'partial' | 'todo' | 'blocked' | 'unknown'
+  /** 未提交（git status） */
+  readonly dirty?: boolean
   readonly children: readonly TreeNode[]
 }
 

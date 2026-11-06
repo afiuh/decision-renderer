@@ -72,7 +72,7 @@ export function Canvas({ tree, edges, onOpen }: {
       id: node.id,
       type: 'card',
       position: positions.get(node.id) ?? { x: 0, y: 0 },
-      data: { title: node.title, status: node.status, hasChildren: node.children.length > 0, expanded: expanded.has(node.id), onToggle: () => toggle(node.id) },
+      data: { title: node.title, status: node.status, dirty: node.dirty, hasChildren: node.children.length > 0, expanded: expanded.has(node.id), onToggle: () => toggle(node.id) },
     }))
     const ids = new Set(visible.map(node => node.id))
     const flowEdges: Edge[] = edges
