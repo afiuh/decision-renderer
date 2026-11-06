@@ -5,6 +5,7 @@ import { Search } from "./canvas/Search.tsx";
 import { CanvasContext, type CanvasActions } from "./drag/DragContext.ts";
 import { useDrag } from "./drag/useDrag.ts";
 import { useLayout } from "./layout/useLayout.ts";
+import { CONTENT_PREFIX, CONTENT_SIZE } from "./layout/radial.ts";
 import { flatten, useEdges, useNodes } from "./layout/useNodes.ts";
 
 const enc = (id: string) => id.split("/").map(encodeURIComponent).join("/");
@@ -17,7 +18,8 @@ export default function App() {
   const [sizes, setSizes] = useState<Map<string, { width: number; height: number }>>(new Map());
   const [dragged, setDragged] = useState<Map<string, number>>(new Map());
   const [selected, setSelected] = useState<string | null>(null);
-  const [contentId, setContentId] = useState<string | null>(null);
+  const [contentIds, setContentIds] = useState<Set<string>>(new Set());
+  const [contentPos, setContentPos] = useState<Map<string, { x: number; y: number }>>(new Map());
   const initialised = useRef(false);
 
   const index = useMemo(() => new Map(flatten(tree).map((n) => [n.id, n])), [tree]);
@@ -48,10 +50,39 @@ export default function App() {
     }
   }, [tree]);
 
-  const layout = useLayout(tree, expanded, sizes, dragged, contentId);
-  const nodes = useNodes(layout, index, expanded, sizes, selected, contentId);
-  const edges = useEdges(layout, expanded, index);
-  const drag = useDrag(layout, setDragged);
+  const layout = useLayout(tree, expanded, sizes, dragged);
+  const nodes = useNodes(layout, index, expanded, sizes, selected, contentIds, contentPos);
+  const edges = useEdges(layout, expanded, index, contentIds);
+  const drag = useDrag({ layout, setDragged, contentPos, setContentPos });
+
+  // 新打开的内容节点：初始位置放在原节点外侧；已拖过的保持不动
+  useEffect(() => {
+    setContentPos((prev) => {
+      let changed = false;
+      const next = new Map(prev);
+      for (const id of contentIds) {
+        if (next.has(id)) continue;
+        const center = layout.positions.get(id);
+        if (!center) continue;
+        const size = sizes.get(CONTENT_PREFIX + id) ?? CONTENT_SIZE;
+        const nr = Math.hypot(size.width, size.height) / 2;
+        const angle = layout.parents.get(id) ? layout.angles.get(id)! : 0;
+        const r = nr + 120;
+        next.set(id, {
+          x: center.x + Math.cos(angle) * r - size.width / 2,
+          y: center.y + Math.sin(angle) * r - size.height / 2,
+        });
+        changed = true;
+      }
+      for (const id of [...next.keys()]) {
+        if (!contentIds.has(id)) {
+          next.delete(id);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [contentIds, layout, sizes]);
 
   const toggle = useCallback((id: string) => {
     setExpanded((prev) => {
@@ -64,7 +95,7 @@ export default function App() {
 
   const open = useCallback((id: string) => {
     setSelected(id);
-    setContentId(id);
+    setContentIds((prev) => new Set(prev).add(id));
   }, []);
 
   const measure = useCallback((id: string, size: { width: number; height: number }) => {
@@ -82,7 +113,12 @@ export default function App() {
       drag,
       toggle,
       open,
-      close: () => setContentId(null),
+      close: (id) =>
+        setContentIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        }),
       measure,
       rename: (id, title) => {
         const next = window.prompt("新名称", title);
@@ -91,14 +127,25 @@ export default function App() {
           method: "PATCH",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ name: next }),
-        }).then(() => setContentId(null));
+        }).then(() => {
+          setContentIds((prev) => {
+            const s = new Set(prev);
+            s.delete(id);
+            return s;
+          });
+        });
       },
       remove: (id) => {
         if (!window.confirm("删除这个节点？")) return;
         fetch(`/api/node/${enc(id)}?ws=${encodeURIComponent(workspace)}`, { method: "DELETE" }).then((r) =>
           r.json().then((d) => {
             if (d.error) window.alert(d.error);
-            else setContentId(null);
+            else
+              setContentIds((prev) => {
+                const s = new Set(prev);
+                s.delete(id);
+                return s;
+              });
           }),
         );
       },
@@ -126,8 +173,8 @@ export default function App() {
   const pickHit = useCallback(
     (id: string) => {
       const chain: string[] = [];
-      const find = (nodes: TreeNode[], trail: string[]): boolean => {
-        for (const n of nodes) {
+      const find = (list: TreeNode[], trail: string[]): boolean => {
+        for (const n of list) {
           const next = [...trail, n.id];
           if (n.id === id) {
             chain.push(...next);
@@ -143,14 +190,15 @@ export default function App() {
         for (const c of chain) next.add(c);
         return next;
       });
-      open(id);
+      setSelected(id);
+      setContentIds((prev) => new Set(prev).add(id));
     },
-    [tree, open],
+    [tree],
   );
 
   const signature = useMemo(
-    () => `${workspace}|${expanded.size}|${flatten(tree).length}|${sizes.size}|${contentId ?? ""}`,
-    [workspace, expanded, tree],
+    () => `${workspace}|${expanded.size}|${flatten(tree).length}|${sizes.size}`,
+    [workspace, expanded, tree, sizes],
   );
 
   return (
@@ -169,7 +217,7 @@ export default function App() {
           <span className="spacer" />
           <Search workspace={workspace} onPick={pickHit} />
         </header>
-        <Canvas nodes={nodes} edges={edges} signature={signature} workspace={workspace} contentId={contentId} />
+        <Canvas nodes={nodes} edges={edges} signature={signature} workspace={workspace} contentIds={contentIds} />
       </div>
     </CanvasContext.Provider>
   );

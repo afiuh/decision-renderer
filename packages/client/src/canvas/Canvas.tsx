@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
   Controls,
@@ -21,7 +21,7 @@ interface Props {
   edges: ReturnType<typeof import("../layout/useNodes.ts").useEdges>;
   signature: string;
   workspace: string;
-  contentId: string | null;
+  contentIds: Set<string>;
 }
 
 function isTyping(target: EventTarget | null) {
@@ -33,30 +33,13 @@ const MIN_ZOOM = 0.05;
 const MAX_ZOOM = 8;
 const SCRUB_SPEED = 400;
 
-export function Canvas({ nodes, edges, signature, workspace, contentId }: Props) {
+export function Canvas({ nodes, edges, signature, workspace }: Props) {
   const actions = useContext(CanvasContext)!;
   useFitView(signature);
-  const { setCenter, fitView, zoomTo, getViewport } = useReactFlow();
-  const lastContent = useRef<string | null>(null);
+  const { fitView, zoomTo, getViewport } = useReactFlow();
   const [space, setSpace] = useState(false);
   const [scrub, setScrub] = useState(false);
   const scrubStart = useRef<{ x: number; zoom: number } | null>(null);
-
-  useEffect(() => {
-    if (!contentId) {
-      lastContent.current = null;
-      return;
-    }
-    if (lastContent.current === contentId) return;
-    lastContent.current = contentId;
-    const key = "content:" + contentId;
-    const node = nodes.find((n) => n.id === key);
-    if (!node) return;
-    const style = (node.style ?? {}) as { width?: number; height?: number };
-    const w = style.width ?? 560;
-    const h = style.height ?? 440;
-    setCenter(node.position.x + w / 2, node.position.y + h / 2, { zoom: 0.8, duration: 300 });
-  }, [contentId, nodes, setCenter]);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -97,7 +80,6 @@ export function Canvas({ nodes, edges, signature, workspace, contentId }: Props)
     };
   }, [fitView, zoomTo]);
 
-  // Ctrl/Cmd + Space 按住：左右移动鼠标缩放（以视口中心为锚点）
   useEffect(() => {
     if (!scrub) return;
     const move = (e: MouseEvent) => {
@@ -118,13 +100,6 @@ export function Canvas({ nodes, edges, signature, workspace, contentId }: Props)
     [nodes, workspace],
   );
 
-  const onNodeClick = useCallback(
-    (_: React.MouseEvent, node: Node) => {
-      if (node.type === "card") actions.open(node.id);
-    },
-    [actions],
-  );
-
   const className = `canvas${scrub ? " scrubbing" : space ? " grabbing" : ""}`;
 
   return (
@@ -134,7 +109,6 @@ export function Canvas({ nodes, edges, signature, workspace, contentId }: Props)
         edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        onNodeClick={onNodeClick}
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable

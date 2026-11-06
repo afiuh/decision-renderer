@@ -46,7 +46,7 @@ export function ContentNode({ id, data, selected }: NodeProps) {
           )}
           <button onClick={() => actions.rename(node.id, node.title)}>重命名</button>
           <button onClick={() => actions.remove(node.id)}>删除</button>
-          <button onClick={actions.close}>×</button>
+          <button onClick={() => actions.close(node.id)}>×</button>
         </div>
       </header>
       <div className="content-body nodrag nowheel">

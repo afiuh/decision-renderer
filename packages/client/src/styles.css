@@ -110,7 +110,7 @@ body {
 }
 .card .toggle:hover { opacity: 1; }
 
-.react-flow__node-content { width: auto; height: auto; }
+.react-flow__node-content { width: 560px; height: 440px; }
 
 .content-node {
   width: 100%; height: 100%;
