@@ -37,7 +37,7 @@ export function ContentNode({ id, data, selected }: NodeProps) {
         onPointerUp={(e) => actions.drag.onPointerUp(e)}
       >
         <span className="content-title">{node.title}</span>
-        <div className="content-actions">
+        <div className="content-actions" onPointerDown={(e) => e.stopPropagation()}>
           <button onClick={() => setEditing((v) => !v)}>{editing ? "预览" : "编辑"}</button>
           {editing && (
             <button className="primary" disabled={!dirty} onClick={save}>
