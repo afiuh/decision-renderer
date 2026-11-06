@@ -7,19 +7,14 @@ export function useWorkspace() {
   const [tree, setTree] = useState<TreeNode | null>(null)
   const [edges, setEdges] = useState<readonly TreeEdge[]>([])
 
-  useEffect(() => {
-    fetch('/api/workspaces').then(response => response.json()).then(setWorkspaces).catch(() => {})
-  }, [])
+  useEffect(() => { fetch('/api/workspaces').then(r => r.json()).then(setWorkspaces).catch(() => {}) }, [])
 
   useEffect(() => {
     const ws = new WebSocket(`ws://127.0.0.1:7341/ws?workspace=${encodeURIComponent(workspace)}`)
     ws.onopen = () => ws.send(JSON.stringify({ type: 'tree' }))
     ws.onmessage = event => {
       const message = JSON.parse(String(event.data)) as { type: string; tree?: TreeNode; edges?: TreeEdge[] }
-      if (message.type === 'tree' && message.tree !== undefined) {
-        setTree(message.tree)
-        setEdges(message.edges ?? [])
-      }
+      if (message.type === 'tree' && message.tree !== undefined) { setTree(message.tree); setEdges(message.edges ?? []) }
     }
     return () => ws.close()
   }, [workspace])

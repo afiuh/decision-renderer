@@ -6,13 +6,7 @@ import type { LayoutResult } from './radial'
 const NODE_W = 140
 const NODE_H = 40
 
-/** 节点状态：布局中心 → 左上角；已有节点保留拖动位置。 */
-export function useNodes(
-  tree: TreeNode | null,
-  layout: LayoutResult | null,
-  expanded: ReadonlySet<string>,
-  toggle: (id: string) => void,
-) {
+export function useNodes(tree: TreeNode | null, layout: LayoutResult | null, expanded: ReadonlySet<string>, toggle: (id: string) => void) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
 
   useEffect(() => {

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { TreeNode } from '../../../shared/types'
 import { radialLayout, type LayoutResult } from './radial'
 
-/** 布局：expanded + radialLayout（不碰 nodes/fitView）。 */
 export function useLayout(tree: TreeNode | null): {
   expanded: ReadonlySet<string>
   toggle: (id: string) => void
@@ -28,6 +27,5 @@ export function useLayout(tree: TreeNode | null): {
   }, [])
 
   const layout = useMemo(() => (tree === null ? null : radialLayout(tree, expanded)), [tree, expanded])
-
   return { expanded, toggle, layout }
 }

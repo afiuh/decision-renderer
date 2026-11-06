@@ -23,12 +23,7 @@ export function App() {
         <input className="search" value={query} onChange={event => void search(event.target.value)} placeholder="搜索节点…" />
         {hits.length > 0 && (
           <ul className="hits">
-            {hits.map(hit => (
-              <li key={hit.id} onClick={() => { setHits([]); setQuery('') }}>
-                <strong>{hit.title}</strong>
-                <span>{hit.snippet.slice(0, 60)}</span>
-              </li>
-            ))}
+            {hits.map(hit => (<li key={hit.id} onClick={() => { setHits([]); setQuery('') }}><strong>{hit.title}</strong><span>{hit.snippet.slice(0, 60)}</span></li>))}
           </ul>
         )}
       </div>

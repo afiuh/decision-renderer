@@ -1,134 +1,81 @@
 import { readdir, readFile, writeFile, stat, mkdir, rm, rename } from 'node:fs/promises'
 import { join, relative, dirname } from 'node:path'
 import type { TreeNode, TreeEdge, NodeContent } from '../../shared/types.ts'
-import { dirtyFiles } from './git.ts'
 
-/** 决策网络根目录（可被环境变量覆盖）。 */
 export const ROOT = process.env.DECISIONS_ROOT ?? '/mnt/data/AI自由工作区/dshiunx/decisions'
 
-/** 从 Markdown 正文提取标题（第一个 `# `）。 */
-function titleOf(markdown: string, fallback: string): string {
-  const line = markdown.split('\n').find(item => item.startsWith('# '))
-  return line === undefined ? fallback : line.slice(2).trim()
-}
+const titleOf = (md: string, fallback: string): string => md.split('\n').find(line => line.startsWith('# '))?.slice(2).trim() ?? fallback
+const statusOf = (md: string): TreeNode['status'] =>
+  md.includes('❌') ? 'blocked' : md.includes('⏳') ? 'partial' : md.includes('✅') ? 'done' : md.includes('待确认') || md.includes('待定') ? 'todo' : 'unknown'
 
-/** 从正文提取状态：✅ done / ❌ blocked / ⏳ partial / 待确认 todo。 */
-function statusOf(markdown: string): TreeNode['status'] {
-  if (markdown.includes('❌')) return 'blocked'
-  if (markdown.includes('⏳')) return 'partial'
-  if (markdown.includes('✅')) return 'done'
-  if (markdown.includes('待确认') || markdown.includes('待定')) return 'todo'
-  return 'unknown'
-}
-
-/** 递归解析目录 → 节点树 + 边。 */
 export async function parseTree(dir: string = ROOT): Promise<{ tree: TreeNode; edges: TreeEdge[] }> {
   const edges: TreeEdge[] = []
-
-  const dirty = await dirtyFiles()
-  const walk = async (folder: string, baseName: string): Promise<TreeNode[]> => {
+  const walk = async (folder: string): Promise<TreeNode[]> => {
     const entries = await readdir(folder, { withFileTypes: true })
     const nodes: TreeNode[] = []
     for (const entry of entries) {
       if (!entry.isFile() || !entry.name.endsWith('.md')) continue
-      const file = join(folder, entry.name)
       const name = entry.name.slice(0, -3)
+      const file = join(folder, entry.name)
       const markdown = await readFile(file, 'utf8')
-      const id = relative(ROOT, file).replace(/\.md$/, '')
-      const childFolder = join(folder, `${name}-子节点`)
+      const id = relative(dir, file).replace(/\.md$/, '')
       let children: TreeNode[] = []
-      try {
-        const info = await stat(childFolder)
-        if (info.isDirectory()) children = await walk(childFolder, name)
-      } catch { /* 没有子节点 */ }
-      const node: TreeNode = {
-        id,
-        title: titleOf(markdown, baseName === '' ? name : baseName),
-        path: file,
-        status: statusOf(markdown),
-        dirty: dirty.has(id),
-        children,
-      }
-      nodes.push(node)
+      try { if ((await stat(join(folder, `${name}-子节点`))).isDirectory()) children = await walk(join(folder, `${name}-子节点`)) } catch { /* 叶子 */ }
+      nodes.push({ id, title: titleOf(markdown, name), path: file, status: statusOf(markdown), children })
       for (const child of children) edges.push({ from: id, to: child.id })
     }
     return nodes
   }
-
-  const roots = await walk(dir, '')
-  const tree: TreeNode = {
-    id: '__root__',
-    title: '决策网络',
-    path: dir,
-    status: 'unknown',
-    children: roots,
-  }
+  const roots = await walk(dir)
+  const tree: TreeNode = { id: '__root__', title: '决策网络', path: dir, status: 'unknown', children: roots }
   for (const root of roots) edges.push({ from: '__root__', to: root.id })
   return { tree, edges }
 }
 
-/** 读单个节点内容。 */
 export async function readNode(id: string, root: string = ROOT): Promise<NodeContent> {
-  const path = join(root, `${id}.md`)
-  const markdown = await readFile(path, 'utf8')
-  return { id, title: titleOf(markdown, id), path, markdown }
+  const markdown = await readFile(join(root, `${id}.md`), 'utf8')
+  return { id, title: titleOf(markdown, id), path: join(root, `${id}.md`), markdown }
 }
 
-/** 写节点（覆盖文件）。 */
 export async function writeNode(id: string, markdown: string, root: string = ROOT): Promise<void> {
   await writeFile(join(root, `${id}.md`), markdown, 'utf8')
 }
 
-/** 新建子节点：写 `父-子节点/标题.md`（默认模板）。 */
-export async function createNode(parentId: string, title: string, markdown?: string, root: string = ROOT): Promise<string> {
-  const parentPath = join(root, `${parentId}.md`)
-  const parentName = parentId.split('/').pop() ?? parentId
-  const folder = join(dirname(parentPath), `${parentName}-子节点`)
+export async function createNode(parent: string, title: string, root: string = ROOT): Promise<string> {
+  const folder = join(dirname(join(root, `${parent}.md`)), `${parent.split('/').pop()}-子节点`)
   await mkdir(folder, { recursive: true })
   const file = join(folder, `${title}.md`)
-  const body = markdown ?? `# ${title}\n\n## 目的\n\n（待写）\n\n## 边界\n\n（待写）\n\n## 验证\n\n（待写）\n`
-  await writeFile(file, body, 'utf8')
-  return relative(ROOT, file).replace(/\.md$/, '')
+  await writeFile(file, `# ${title}\n\n## 目的\n\n（待写）\n\n## 边界\n\n（待写）\n\n## 验证\n\n（待写）\n`, 'utf8')
+  return relative(root, file).replace(/\.md$/, '')
 }
 
-/** 全文搜索（标题 + 内容）。 */
+export async function deleteNode(id: string, root: string = ROOT): Promise<void> {
+  await rm(join(root, `${id}.md`), { force: true })
+  await rm(join(root, `${id}-子节点`), { recursive: true, force: true })
+}
+
+export async function renameNode(id: string, title: string, root: string = ROOT): Promise<string> {
+  const parts = id.split('/')
+  const old = parts.pop() ?? id
+  const next = parts.length === 0 ? title : `${parts.join('/')}/${title}`
+  await rename(join(root, `${id}.md`), join(root, `${next}.md`))
+  try { await stat(join(root, `${id}-子节点`)); await rename(join(root, `${id}-子节点`), join(root, `${next}-子节点`)) } catch { /* 无子节点 */ }
+  return next
+}
+
 export async function searchNodes(query: string, root: string = ROOT): Promise<Array<{ id: string; title: string; snippet: string }>> {
   const hits: Array<{ id: string; title: string; snippet: string }> = []
   const walk = async (folder: string): Promise<void> => {
-    const entries = await readdir(folder, { withFileTypes: true })
-    for (const entry of entries) {
+    for (const entry of await readdir(folder, { withFileTypes: true })) {
       const full = join(folder, entry.name)
       if (entry.isDirectory()) { await walk(full); continue }
       if (!entry.name.endsWith('.md')) continue
       const markdown = await readFile(full, 'utf8')
       const index = markdown.toLowerCase().indexOf(query.toLowerCase())
       if (index < 0) continue
-      const id = relative(ROOT, full).replace(/\.md$/, '')
-      hits.push({ id, title: titleOf(markdown, id), snippet: markdown.slice(Math.max(0, index - 40), index + 80).replace(/\s+/g, ' ') })
+      hits.push({ id: relative(root, full).replace(/\.md$/, ''), title: titleOf(markdown, entry.name), snippet: markdown.slice(Math.max(0, index - 40), index + 80).replace(/\s+/g, ' ') })
     }
   }
   await walk(root)
   return hits.slice(0, 50)
-}
-
-/** 删除节点（文件 + 子节点文件夹）。 */
-export async function deleteNode(id: string, root: string = ROOT): Promise<void> {
-  const path = join(root, `${id}.md`)
-  const folder = join(root, `${id}-子节点`)
-  await rm(path, { force: true })
-  await rm(folder, { recursive: true, force: true })
-}
-
-/** 重命名节点（文件 + 子节点文件夹同步改名）。 */
-export async function renameNode(id: string, nextTitle: string, root: string = ROOT): Promise<string> {
-  const parts = id.split('/')
-  const oldName = parts.pop() ?? id
-  const parent = parts.join('/')
-  const nextId = parent === '' ? nextTitle : `${parent}/${nextTitle}`
-  await rename(join(root, `${id}.md`), join(root, `${nextId}.md`))
-  try {
-    await stat(join(root, `${id}-子节点`))
-    await rename(join(root, `${id}-子节点`), join(root, `${nextId}-子节点`))
-  } catch { /* 没有子节点文件夹 */ }
-  return nextId
 }
