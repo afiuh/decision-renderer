@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { Edge, Node } from "@xyflow/react";
 import type { TreeNode } from "@dr/shared";
-import { DEFAULT_SIZE, type LayoutResult } from "./radial.ts";
+import { CONTENT_PREFIX, CONTENT_SIZE, DEFAULT_SIZE, type LayoutResult } from "./radial.ts";
 
 export function flatten(nodes: TreeNode[], out: TreeNode[] = []): TreeNode[] {
   for (const n of nodes) {
@@ -35,16 +35,18 @@ export function useNodes(
     }
 
     if (contentId) {
-      const parent = index.get(contentId);
-      const size = sizes.get(contentId) ?? DEFAULT_SIZE;
-      if (parent) {
+      const node = index.get(contentId);
+      const key = CONTENT_PREFIX + contentId;
+      const center = layout.positions.get(key);
+      const size = sizes.get(key) ?? CONTENT_SIZE;
+      if (node && center) {
         nodes.push({
-          id: "content:" + contentId,
+          id: key,
           type: "content",
-          parentId: contentId,
-          position: { x: size.width + 40, y: -60 },
-          data: { node: parent },
-          draggable: true,
+          position: { x: center.x - size.width / 2, y: center.y - size.height / 2 },
+          style: { width: size.width, height: size.height },
+          data: { node },
+          draggable: false,
           zIndex: 20,
         });
       }
@@ -59,14 +61,18 @@ export function useEdges(layout: LayoutResult, expanded: Set<string>, index: Map
     const edges: Edge[] = [];
     for (const [id, parentId] of layout.parents) {
       if (!parentId) continue;
+      const isContent = id.startsWith(CONTENT_PREFIX);
       const parent = index.get(parentId);
-      if (!parent || !expanded.has(parentId)) continue;
+      if (!parent) continue;
+      if (!isContent && !expanded.has(parentId)) continue;
       edges.push({
         id: `e:${parentId}->${id}`,
         source: parentId,
         target: id,
         type: "floating",
-        style: { stroke: "#c9d3e0", strokeWidth: 1 },
+        style: isContent
+          ? { stroke: "#9fb3cc", strokeWidth: 1, strokeDasharray: "4 3" }
+          : { stroke: "#c9d3e0", strokeWidth: 1 },
         zIndex: 0,
       });
     }

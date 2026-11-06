@@ -48,7 +48,7 @@ export default function App() {
     }
   }, [tree]);
 
-  const layout = useLayout(tree, expanded, sizes, dragged);
+  const layout = useLayout(tree, expanded, sizes, dragged, contentId);
   const nodes = useNodes(layout, index, expanded, sizes, selected, contentId);
   const edges = useEdges(layout, expanded, index);
   const drag = useDrag(layout, setDragged);
@@ -149,7 +149,7 @@ export default function App() {
   );
 
   const signature = useMemo(
-    () => `${workspace}|${expanded.size}|${flatten(tree).length}|${sizes.size}`,
+    () => `${workspace}|${expanded.size}|${flatten(tree).length}|${sizes.size}|${contentId ?? ""}`,
     [workspace, expanded, tree],
   );
 
@@ -169,7 +169,7 @@ export default function App() {
           <span className="spacer" />
           <Search workspace={workspace} onPick={pickHit} />
         </header>
-        <Canvas nodes={nodes} edges={edges} signature={signature} workspace={workspace} />
+        <Canvas nodes={nodes} edges={edges} signature={signature} workspace={workspace} contentId={contentId} />
       </div>
     </CanvasContext.Provider>
   );

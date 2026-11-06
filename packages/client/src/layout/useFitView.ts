@@ -1,21 +1,21 @@
-import { useCallback, useEffect, useRef } from "react";
-import { useReactFlow } from "@xyflow/react";
+import { useCallback, useEffect } from "react";
+import { useNodesInitialized, useReactFlow } from "@xyflow/react";
 
-/** 树结构变化后 fit 一次；用户手动缩放后不打断 */
+/** 节点测量完成后 fit；结构变化（展开/折叠/内容节点开关）后重新 fit */
 export function useFitView(signature: string) {
   const { fitView } = useReactFlow();
-  const first = useRef(true);
+  const initialized = useNodesInitialized();
 
   const fit = useCallback(() => {
     requestAnimationFrame(() => {
-      fitView({ padding: 0.2, maxZoom: 1, duration: first.current ? 0 : 200 });
-      first.current = false;
+      fitView({ padding: 0.15, maxZoom: 1, duration: 200 });
     });
   }, [fitView]);
 
   useEffect(() => {
+    if (!initialized) return;
     fit();
-  }, [signature, fit]);
+  }, [signature, initialized, fit]);
 
   return fit;
 }

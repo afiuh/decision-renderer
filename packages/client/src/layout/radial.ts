@@ -1,7 +1,9 @@
 import type { TreeNode } from "@dr/shared";
 
 export const GAP = 40;
-export const DEFAULT_SIZE = { width: 180, height: 56 };
+export const DEFAULT_SIZE = { width: 120, height: 36 };
+export const CONTENT_SIZE = { width: 560, height: 440 };
+export const CONTENT_PREFIX = "content:";
 
 export interface LayoutInput {
   roots: TreeNode[];
@@ -9,6 +11,8 @@ export interface LayoutInput {
   sizes: Map<string, { width: number; height: number }>;
   /** 用户拖过的角度（弧度），拖动后持久保留 */
   dragged: Map<string, number>;
+  /** 当前打开内容节点的原节点 id */
+  contentId?: string | null;
 }
 
 export interface LayoutResult {
@@ -18,7 +22,7 @@ export interface LayoutResult {
   angles: Map<string, number>;
 }
 
-export function radialLayout({ roots, expanded, sizes, dragged }: LayoutInput): LayoutResult {
+export function radialLayout({ roots, expanded, sizes, dragged, contentId }: LayoutInput): LayoutResult {
   const positions = new Map<string, { x: number; y: number }>();
   const parents = new Map<string, string | null>();
   const radii = new Map<string, number>();
@@ -93,11 +97,7 @@ export function radialLayout({ roots, expanded, sizes, dragged }: LayoutInput): 
     placeChildren(root, { x: 0, y: 0 });
   } else if (roots.length > 1) {
     const items = roots
-      .map((node) => ({
-        node,
-        nr: circleR.get(node.id)!,
-        weight: footprints.get(node.id)!,
-      }))
+      .map((node) => ({ node, nr: circleR.get(node.id)!, weight: footprints.get(node.id)! }))
       .sort((a, b) => b.weight - a.weight);
     const totalArc = items.reduce((s, it) => s + 2 * it.nr + GAP, 0);
     const r0 = Math.max(1, totalArc / (2 * Math.PI));
@@ -113,6 +113,46 @@ export function radialLayout({ roots, expanded, sizes, dragged }: LayoutInput): 
       angles.set(it.node.id, angle);
       placeChildren(it.node, pos);
     }
+  }
+
+  // 内容节点：布局里的普通节点，挂在原节点外侧最空的方向上
+  if (contentId && positions.has(contentId)) {
+    const center = positions.get(contentId)!;
+    const outward = parents.get(contentId) ? angles.get(contentId)! : freestAngle(contentId);
+    const key = CONTENT_PREFIX + contentId;
+    const angle = dragged.get(key) ?? outward;
+    const size = sizes.get(key) ?? CONTENT_SIZE;
+    const nr = Math.hypot(size.width, size.height) / 2;
+    const r = cardRadius(contentId) + nr + GAP * 2;
+
+    positions.set(key, {
+      x: center.x + Math.cos(angle) * r,
+      y: center.y + Math.sin(angle) * r,
+    });
+    parents.set(key, contentId);
+    radii.set(key, r);
+    angles.set(key, angle);
+  }
+
+  function freestAngle(baseId: string): number {
+    const kids: number[] = [];
+    for (const [id, p] of parents) {
+      if (p === baseId) kids.push(angles.get(id)!);
+    }
+    if (kids.length === 0) return 0;
+    kids.sort((a, b) => a - b);
+    let best = 0;
+    let bestGap = -1;
+    for (let i = 0; i < kids.length; i++) {
+      const a = kids[i];
+      const b = i + 1 < kids.length ? kids[i + 1] : kids[0] + Math.PI * 2;
+      const gap = b - a;
+      if (gap > bestGap) {
+        bestGap = gap;
+        best = a + gap / 2;
+      }
+    }
+    return best;
   }
 
   return { positions, parents, radii, angles };

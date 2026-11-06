@@ -7,9 +7,10 @@ export function useLayout(
   expanded: Set<string>,
   sizes: Map<string, { width: number; height: number }>,
   dragged: Map<string, number>,
+  contentId: string | null,
 ) {
   return useMemo(
-    () => radialLayout({ roots, expanded, sizes, dragged }),
-    [roots, expanded, sizes, dragged],
+    () => radialLayout({ roots, expanded, sizes, dragged, contentId }),
+    [roots, expanded, sizes, dragged, contentId],
   );
 }
