@@ -141,6 +141,12 @@ export function Canvas({ tree, edges, onOpen, workspace }: {
   }, [expanded])
 
   // 拖拽中：实时推挤（只推重叠的，O(n)）
+  const dragStartRef = useRef<{ x: number; y: number } | null>(null)
+
+  const onNodeDragStart = useCallback((_: unknown, node: Node) => {
+    dragStartRef.current = { x: node.position.x, y: node.position.y }
+  }, [])
+
   const onNodeDrag = useCallback((_: unknown, moved: Node) => {
     const parentId = parents.get(moved.id)
     const radius = radii.get(moved.id)
@@ -151,7 +157,7 @@ export function Canvas({ tree, edges, onOpen, workspace }: {
         if (parent === undefined) return current
         const angle = Math.atan2(moved.position.y - parent.position.y, moved.position.x - parent.position.x)
         const position = { x: parent.position.x + radius * Math.cos(angle), y: parent.position.y + radius * Math.sin(angle) }
-        const old = current.find(item => item.id === moved.id)?.position ?? position
+        const old = dragStartRef.current ?? position
         const delta = { x: position.x - old.x, y: position.y - old.y }
         const kids = new Set(descendants.get(moved.id) ?? [])
         return current.map(item => {
@@ -203,6 +209,7 @@ export function Canvas({ tree, edges, onOpen, workspace }: {
 
       nodes={nodes}
       onNodesChange={handleNodesChange}
+      onNodeDragStart={onNodeDragStart}
       onNodeDrag={onNodeDrag}
       onNodeContextMenu={onNodeContextMenu}
       onNodeDragStop={onNodeDragStop}
