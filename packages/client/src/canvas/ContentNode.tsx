@@ -13,11 +13,12 @@ export function ContentNode({ data }: NodeProps) {
   const [text, setText] = useState(node.markdown)
   const [saving, setSaving] = useState(false)
   const onClose = data.onClose as () => void
+  const workspace = String(data.workspace ?? 'dshiunx')
 
   const save = async (): Promise<void> => {
     setSaving(true)
     try {
-      await fetch(`/api/node/${encodeURIComponent(node.id)}`, {
+      await fetch(`/api/node/${encodeURIComponent(node.id)}?workspace=${encodeURIComponent(workspace)}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ markdown: text }),

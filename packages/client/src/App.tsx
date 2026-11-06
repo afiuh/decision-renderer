@@ -3,6 +3,8 @@ import { Canvas } from './canvas/Canvas'
 import type { TreeEdge, TreeNode } from '../../shared/types'
 
 export function App() {
+  const [workspace, setWorkspace] = useState('dshiunx')
+  const [workspaces, setWorkspaces] = useState<Array<{ id: string; root: string }>>([])
   const [tree, setTree] = useState<TreeNode | null>(null)
   const [edges, setEdges] = useState<readonly TreeEdge[]>([])
 
@@ -11,7 +13,11 @@ export function App() {
   const [hits, setHits] = useState<Array<{ id: string; title: string; snippet: string }>>([])
 
   useEffect(() => {
-    const ws = new WebSocket('ws://127.0.0.1:7341/ws')
+    fetch('/api/workspaces').then(response => response.json()).then(setWorkspaces).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    const ws = new WebSocket(`ws://127.0.0.1:7341/ws?workspace=${encodeURIComponent(workspace)}`)
     ws.onopen = () => ws.send(JSON.stringify({ type: 'tree' }))
     ws.onmessage = event => {
       const message = JSON.parse(String(event.data)) as { type: string; tree?: TreeNode; edges?: TreeEdge[] }
@@ -21,7 +27,7 @@ export function App() {
       }
     }
     return () => ws.close()
-  }, [])
+  }, [workspace])
 
   const openNode = useCallback((id: string) => {
     setSelected(id)
@@ -48,6 +54,9 @@ export function App() {
   return (
     <div className="app">
       <div className="toolbar">
+        <select className="workspace" value={workspace} onChange={event => setWorkspace(event.target.value)}>
+          {workspaces.map(item => <option key={item.id} value={item.id}>{item.id}</option>)}
+        </select>
         <button onClick={createChild} disabled={selected === null}>+ 新建子节点{selected === null ? '（先点一个节点）' : `：${selected}`}</button>
         <input className="search" value={query} onChange={event => void search(event.target.value)} placeholder="搜索节点…" />
         {hits.length > 0 && (
@@ -61,7 +70,7 @@ export function App() {
           </ul>
         )}
       </div>
-      <Canvas tree={tree} edges={edges} onOpen={openNode} />
+      <Canvas tree={tree} edges={edges} onOpen={openNode} workspace={workspace} />
     </div>
   )
 }

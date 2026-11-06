@@ -68,20 +68,20 @@ export async function parseTree(dir: string = ROOT): Promise<{ tree: TreeNode; e
 }
 
 /** 读单个节点内容。 */
-export async function readNode(id: string): Promise<NodeContent> {
-  const path = join(ROOT, `${id}.md`)
+export async function readNode(id: string, root: string = ROOT): Promise<NodeContent> {
+  const path = join(root, `${id}.md`)
   const markdown = await readFile(path, 'utf8')
   return { id, title: titleOf(markdown, id), path, markdown }
 }
 
 /** 写节点（覆盖文件）。 */
-export async function writeNode(id: string, markdown: string): Promise<void> {
-  await writeFile(join(ROOT, `${id}.md`), markdown, 'utf8')
+export async function writeNode(id: string, markdown: string, root: string = ROOT): Promise<void> {
+  await writeFile(join(root, `${id}.md`), markdown, 'utf8')
 }
 
 /** 新建子节点：写 `父-子节点/标题.md`（默认模板）。 */
-export async function createNode(parentId: string, title: string, markdown?: string): Promise<string> {
-  const parentPath = join(ROOT, `${parentId}.md`)
+export async function createNode(parentId: string, title: string, markdown?: string, root: string = ROOT): Promise<string> {
+  const parentPath = join(root, `${parentId}.md`)
   const parentName = parentId.split('/').pop() ?? parentId
   const folder = join(dirname(parentPath), `${parentName}-子节点`)
   await mkdir(folder, { recursive: true })
@@ -92,7 +92,7 @@ export async function createNode(parentId: string, title: string, markdown?: str
 }
 
 /** 全文搜索（标题 + 内容）。 */
-export async function searchNodes(query: string): Promise<Array<{ id: string; title: string; snippet: string }>> {
+export async function searchNodes(query: string, root: string = ROOT): Promise<Array<{ id: string; title: string; snippet: string }>> {
   const hits: Array<{ id: string; title: string; snippet: string }> = []
   const walk = async (folder: string): Promise<void> => {
     const entries = await readdir(folder, { withFileTypes: true })
@@ -107,6 +107,6 @@ export async function searchNodes(query: string): Promise<Array<{ id: string; ti
       hits.push({ id, title: titleOf(markdown, id), snippet: markdown.slice(Math.max(0, index - 40), index + 80).replace(/\s+/g, ' ') })
     }
   }
-  await walk(ROOT)
+  await walk(root)
   return hits.slice(0, 50)
 }

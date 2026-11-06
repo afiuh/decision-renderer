@@ -41,19 +41,20 @@ function layout(nodes: TreeNode[], edges: readonly TreeEdge[]): Map<string, { x:
   return positions
 }
 
-export function Canvas({ tree, edges, onOpen }: {
+export function Canvas({ tree, edges, onOpen, workspace }: {
   tree: TreeNode | null
   edges: readonly TreeEdge[]
   onOpen: (id: string) => void
+  workspace: string
 }) {
   const flowRef = useRef<ReactFlowInstance | null>(null)
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
-  const [seeded, setSeeded] = useState(false)
+  const [seededPath, setSeededPath] = useState<string | null>(null)
   useEffect(() => {
-    if (tree === null || seeded) return
+    if (tree === null || seededPath === tree.path) return
     setExpanded(new Set(tree.children.map(child => child.id)))
-    setSeeded(true)
-  }, [tree, seeded])
+    setSeededPath(tree.path)
+  }, [tree, seededPath])
 
   const toggle = useCallback((id: string) => {
     console.log('[toggle]', id)
@@ -72,7 +73,7 @@ export function Canvas({ tree, edges, onOpen }: {
     return () => clearTimeout(timer)
   }, [tree])
   const openContent = useCallback(async (id: string) => {
-    const response = await fetch(`/api/node/${encodeURIComponent(id)}`)
+    const response = await fetch(`/api/node/${encodeURIComponent(id)}?workspace=${encodeURIComponent(workspace)}`)
     const node = await response.json() as { id: string; title: string; path: string; markdown: string }
     setNodes(prev => {
       const filtered = prev.filter(item => item.id !== `content-${id}`)
@@ -85,7 +86,7 @@ export function Canvas({ tree, edges, onOpen }: {
         position: { x: screen.x + offset * 40, y: screen.y + offset * 40 },
         width: 520,
         height: 420,
-        data: { node, onClose: () => setNodes(list => list.filter(item => item.id !== `content-${id}`)) },
+        data: { node, workspace, onClose: () => setNodes(list => list.filter(item => item.id !== `content-${id}`)) },
         style: { width: 520, height: 420 },
       }]
       // 新增内容节点后推挤所有重叠（含节点）
