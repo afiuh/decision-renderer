@@ -105,18 +105,23 @@ export function Canvas({ tree, edges, onOpen, workspace }: {
     return { computedNodes: built, flowEdges }
   }, [tree, edges, expanded, toggle])
 
-  // 树/展开变化时重置节点位置
-  useEffect(() => { setNodes(computedNodes) }, [computedNodes, setNodes])
+  // 展开/折叠/切树时合并布局：新节点用布局位置，已有节点保留用户拖动的位置
+  useEffect(() => {
+    setNodes(prev => {
+      const existing = new Map(prev.map(item => [item.id, item]))
+      return computedNodes.map(item => existing.get(item.id) ?? item)
+    })
+  }, [computedNodes, setNodes])
 
-  const contentEdges = useMemo(() => nodes.filter(item => item.type === 'content').map(item => ({
+  const contentEdges = useMemo(() => { ; return nodes.filter(item => item.type === 'content').map(item => ({
     id: `content-edge-${item.id}`,
     source: item.id,
     target: item.id.replace(/^content-/, ''),
-    type: 'default',
+    type: 'routed',
     style: { strokeDasharray: '4 4', stroke: '#94a3b8', strokeWidth: 1 },
-  })), [nodes])
+  })) }, [nodes])
 
-  const { updateRoutingOnNodesChange, resetRouting } = useEdgeRouting(nodes, flowEdges, {
+  const { updateRoutingOnNodesChange, resetRouting } = useEdgeRouting(nodes, [...flowEdges, ...contentEdges], {
     connectorType: 'orthogonal',
     edgeRounding: 12,
     edgeToEdgeSpacing: 4,
