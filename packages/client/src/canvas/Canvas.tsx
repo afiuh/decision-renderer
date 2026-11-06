@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ReactFlow, Background, Controls, type Node, type Edge, type ReactFlowInstance } from '@xyflow/react'
 import dagre from '@dagrejs/dagre'
 import { NodeCard } from './NodeCard'
@@ -11,13 +11,13 @@ const NODE_H = 56
 /** 树 → 扁平列表（只收可见节点：根 + 展开的子孙）。 */
 function visibleNodes(tree: TreeNode, expanded: ReadonlySet<string>): TreeNode[] {
   const result: TreeNode[] = []
-  const walk = (node: TreeNode, depth: number): void => {
+  const walk = (node: TreeNode): void => {
     result.push(node)
-    if (depth === 0 || expanded.has(node.id)) {
-      for (const child of node.children) walk(child, depth + 1)
+    if (expanded.has(node.id)) {
+      for (const child of node.children) walk(child)
     }
   }
-  for (const child of tree.children) walk(child, 0)
+  for (const child of tree.children) walk(child)
   return result
 }
 
@@ -45,8 +45,15 @@ export function Canvas({ tree, edges, onOpen }: {
 }) {
   const flowRef = useRef<ReactFlowInstance | null>(null)
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
+  const [seeded, setSeeded] = useState(false)
+  useEffect(() => {
+    if (tree === null || seeded) return
+    setExpanded(new Set(tree.children.map(child => child.id)))
+    setSeeded(true)
+  }, [tree, seeded])
 
   const toggle = useCallback((id: string) => {
+    console.log('[toggle]', id)
     setExpanded(prev => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -75,7 +82,7 @@ export function Canvas({ tree, edges, onOpen }: {
   return (
     <ReactFlow
       onInit={instance => { flowRef.current = instance }}
-      onNodesInitialized={() => flowRef.current?.fitView({ padding: 0.1, minZoom: 0.1 })}
+
       nodes={nodes}
       edges={flowEdges}
       nodeTypes={nodeTypes}
