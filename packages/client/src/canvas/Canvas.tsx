@@ -3,9 +3,10 @@ import { resolveCollisions } from './collision'
 import { ReactFlow, Background, Controls, useNodesState, type Node, type Edge, type ReactFlowInstance } from '@xyflow/react'
 import dagre from '@dagrejs/dagre'
 import { NodeCard } from './NodeCard'
+import { ContentNode } from './ContentNode'
 import type { TreeEdge, TreeNode } from '../../../shared/types'
 
-const nodeTypes = { card: NodeCard }
+const nodeTypes = { card: NodeCard, content: ContentNode }
 const NODE_W = 180
 const NODE_H = 56
 
@@ -64,6 +65,22 @@ export function Canvas({ tree, edges, onOpen }: {
   }, [])
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
+  const openContent = useCallback(async (id: string) => {
+    const response = await fetch(`/api/node/${encodeURIComponent(id)}`)
+    const node = await response.json() as { id: string; title: string; path: string; markdown: string }
+    setNodes(prev => {
+      const filtered = prev.filter(item => item.id !== `content-${id}`)
+      const offset = filtered.filter(item => item.type === 'content').length
+      return [...filtered, {
+        id: `content-${id}`,
+        type: 'content',
+        position: { x: 120 + offset * 40, y: 120 + offset * 40 },
+        data: { node, onClose: () => setNodes(list => list.filter(item => item.id !== `content-${id}`)) },
+        style: { width: 520, height: 420 },
+      }]
+    })
+  }, [setNodes])
+
   const { computedNodes, flowEdges } = useMemo(() => {
     if (tree === null) return { nodes: [] as Node[], flowEdges: [] as Edge[] }
     const visible = visibleNodes(tree, expanded)
@@ -98,7 +115,7 @@ export function Canvas({ tree, edges, onOpen }: {
       onNodeDragStop={onNodeDragStop}
       edges={flowEdges}
       nodeTypes={nodeTypes}
-      onNodeClick={(_, node) => onOpen(node.id)}
+      onNodeClick={(_, node) => { if (node.type === 'card') { onOpen(node.id); void openContent(node.id) } }}
       fitView
       minZoom={0.1}
       proOptions={{ hideAttribution: true }}

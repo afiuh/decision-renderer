@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Canvas } from './canvas/Canvas'
-import { ContentWindow } from './window/ContentWindow'
-import type { NodeContent, TreeEdge, TreeNode } from '../../shared/types'
+import type { TreeEdge, TreeNode } from '../../shared/types'
 
 export function App() {
   const [tree, setTree] = useState<TreeNode | null>(null)
   const [edges, setEdges] = useState<readonly TreeEdge[]>([])
-  const [open, setOpen] = useState<NodeContent | null>(null)
+
   const [selected, setSelected] = useState<string | null>(null)
 
   useEffect(() => {
@@ -22,10 +21,8 @@ export function App() {
     return () => ws.close()
   }, [])
 
-  const openNode = useCallback(async (id: string) => {
+  const openNode = useCallback((id: string) => {
     setSelected(id)
-    const response = await fetch(`/api/node/${encodeURIComponent(id)}`)
-    setOpen(await response.json() as NodeContent)
   }, [])
 
   const createChild = useCallback(async () => {
@@ -45,7 +42,6 @@ export function App() {
         <button onClick={createChild} disabled={selected === null}>+ 新建子节点{selected === null ? '（先点一个节点）' : `：${selected}`}</button>
       </div>
       <Canvas tree={tree} edges={edges} onOpen={openNode} />
-      {open !== null && <ContentWindow node={open} onClose={() => setOpen(null)} />}
     </div>
   )
 }
