@@ -153,7 +153,7 @@ function CanvasInner({ project, tree, onSelect, handleRef }: Props) {
 
   const createChild = useCallback(async () => {
     if (!selected) {
-      window.alert("先点一个节点，再新建子节点");
+      window.alert(`先点一个节点，再新建子节点（project=${project}）`);
       return;
     }
     const title = window.prompt("子节点名称");

@@ -106,7 +106,8 @@ export async function registerApi(app: FastifyInstance, projectRoot: string, onC
   app.post("/api/node/*", async (req, reply) => {
     try {
       const id = String((req.params as Record<string, string>)["*"]);
-      const { markdown, ws } = req.body as { markdown: string; ws?: string };
+      const { markdown } = req.body as { markdown: string };
+      const { ws } = req.query as { ws?: string };
       await writeNode((await wsOf(ws)).root, id, markdown);
       return { ok: true };
     } catch (err) {
@@ -117,7 +118,8 @@ export async function registerApi(app: FastifyInstance, projectRoot: string, onC
 
   app.post("/api/node", async (req, reply) => {
     try {
-      const { parent, title, ws } = req.body as { parent: string; title: string; ws?: string };
+      const { parent, title } = req.body as { parent: string; title: string };
+      const { ws } = req.query as { ws?: string };
       const id = await createNode((await wsOf(ws)).root, parent, title);
       return { ok: true, id };
     } catch (err) {
@@ -129,7 +131,8 @@ export async function registerApi(app: FastifyInstance, projectRoot: string, onC
   app.patch("/api/node/*", async (req, reply) => {
     try {
       const id = String((req.params as Record<string, string>)["*"]);
-      const { name, ws } = req.body as { name: string; ws?: string };
+      const { name } = req.body as { name: string };
+      const { ws } = req.query as { ws?: string };
       const nextId = await renameNode((await wsOf(ws)).root, id, name);
       return { ok: true, id: nextId };
     } catch (err) {
