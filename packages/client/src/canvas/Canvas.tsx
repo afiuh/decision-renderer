@@ -108,6 +108,14 @@ export function Canvas({ tree, edges, onOpen, workspace }: {
   // 树/展开变化时重置节点位置
   useEffect(() => { setNodes(computedNodes) }, [computedNodes, setNodes])
 
+  const contentEdges = useMemo(() => nodes.filter(item => item.type === 'content').map(item => ({
+    id: `content-edge-${item.id}`,
+    source: item.id,
+    target: item.id.replace(/^content-/, ''),
+    type: 'default',
+    style: { strokeDasharray: '4 4', stroke: '#94a3b8', strokeWidth: 1 },
+  })), [nodes])
+
   const { updateRoutingOnNodesChange, resetRouting } = useEdgeRouting(nodes, flowEdges, {
     connectorType: 'orthogonal',
     edgeRounding: 12,
@@ -180,7 +188,7 @@ export function Canvas({ tree, edges, onOpen, workspace }: {
       onNodeDrag={onNodeDrag}
       onNodeContextMenu={onNodeContextMenu}
       onNodeDragStop={onNodeDragStop}
-      edges={flowEdges}
+      edges={[...flowEdges, ...contentEdges]}
       edgeTypes={edgeTypes}
       nodeTypes={nodeTypes}
       onNodeClick={(_, node) => { if (node.type === 'card') { onOpen(node.id); void openContent(node.id) } }}
