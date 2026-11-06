@@ -1,6 +1,6 @@
 import Fastify from 'fastify'
 import { WebSocketServer } from 'ws'
-import { parseTree, readNode, writeNode } from './parse.ts'
+import { parseTree, readNode, writeNode, createNode, searchNodes } from './parse.ts'
 import { watchTree } from './watch.ts'
 
 const app = Fastify({ logger: false })
@@ -11,6 +11,11 @@ app.post<{ Params: { id: string }; Body: { markdown: string } }>('/api/node/:id'
   await writeNode(request.params.id, request.body.markdown)
   return { ok: true }
 })
+app.post<{ Body: { parent: string; title: string; markdown?: string } }>('/api/node', async request => {
+  const id = await createNode(request.body.parent, request.body.title, request.body.markdown)
+  return { id }
+})
+app.get<{ Querystring: { q: string } }>('/api/search', async request => searchNodes(request.query.q))
 
 const server = await app.listen({ port: 7341, host: '127.0.0.1' })
 console.log(`[server] http://127.0.0.1:7341`)

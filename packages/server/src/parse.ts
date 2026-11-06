@@ -1,5 +1,5 @@
-import { readdir, readFile, writeFile, stat } from 'node:fs/promises'
-import { join, relative } from 'node:path'
+import { readdir, readFile, writeFile, stat, mkdir } from 'node:fs/promises'
+import { join, relative, dirname } from 'node:path'
 import type { TreeNode, TreeEdge, NodeContent } from '../../shared/types.ts'
 
 /** 决策网络根目录（可被环境变量覆盖）。 */
@@ -74,4 +74,36 @@ export async function readNode(id: string): Promise<NodeContent> {
 /** 写节点（覆盖文件）。 */
 export async function writeNode(id: string, markdown: string): Promise<void> {
   await writeFile(join(ROOT, `${id}.md`), markdown, 'utf8')
+}
+
+/** 新建子节点：写 `父-子节点/标题.md`（默认模板）。 */
+export async function createNode(parentId: string, title: string, markdown?: string): Promise<string> {
+  const parentPath = join(ROOT, `${parentId}.md`)
+  const parentName = parentId.split('/').pop() ?? parentId
+  const folder = join(dirname(parentPath), `${parentName}-子节点`)
+  await mkdir(folder, { recursive: true })
+  const file = join(folder, `${title}.md`)
+  const body = markdown ?? `# ${title}\n\n## 目的\n\n（待写）\n\n## 边界\n\n（待写）\n\n## 验证\n\n（待写）\n`
+  await writeFile(file, body, 'utf8')
+  return relative(ROOT, file).replace(/\.md$/, '')
+}
+
+/** 全文搜索（标题 + 内容）。 */
+export async function searchNodes(query: string): Promise<Array<{ id: string; title: string; snippet: string }>> {
+  const hits: Array<{ id: string; title: string; snippet: string }> = []
+  const walk = async (folder: string): Promise<void> => {
+    const entries = await readdir(folder, { withFileTypes: true })
+    for (const entry of entries) {
+      const full = join(folder, entry.name)
+      if (entry.isDirectory()) { await walk(full); continue }
+      if (!entry.name.endsWith('.md')) continue
+      const markdown = await readFile(full, 'utf8')
+      const index = markdown.toLowerCase().indexOf(query.toLowerCase())
+      if (index < 0) continue
+      const id = relative(ROOT, full).replace(/\.md$/, '')
+      hits.push({ id, title: titleOf(markdown, id), snippet: markdown.slice(Math.max(0, index - 40), index + 80).replace(/\s+/g, ' ') })
+    }
+  }
+  await walk(ROOT)
+  return hits.slice(0, 50)
 }
