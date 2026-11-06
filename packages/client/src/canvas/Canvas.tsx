@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { resolveCollisions } from './collision'
+import { pushAway } from './liveCollision'
 import { ReactFlow, Background, Controls, useNodesState, type Node, type Edge, type ReactFlowInstance } from '@xyflow/react'
 import dagre from '@dagrejs/dagre'
 import { NodeCard } from './NodeCard'
@@ -71,13 +72,17 @@ export function Canvas({ tree, edges, onOpen }: {
     setNodes(prev => {
       const filtered = prev.filter(item => item.id !== `content-${id}`)
       const offset = filtered.filter(item => item.type === 'content').length
-      return [...filtered, {
+      const withContent = [...filtered, {
         id: `content-${id}`,
         type: 'content',
         position: { x: 120 + offset * 40, y: 120 + offset * 40 },
+        width: 520,
+        height: 420,
         data: { node, onClose: () => setNodes(list => list.filter(item => item.id !== `content-${id}`)) },
         style: { width: 520, height: 420 },
       }]
+      // 新增内容节点后推挤所有重叠（含节点）
+      return resolveCollisions(withContent, { maxIterations: 50, overlapThreshold: 0.5, margin: 8 })
     })
   }, [setNodes])
 
@@ -101,6 +106,16 @@ export function Canvas({ tree, edges, onOpen }: {
   // 树/展开变化时重置节点位置
   useEffect(() => { setNodes(computedNodes) }, [computedNodes, setNodes])
 
+  // 拖拽中：实时推挤（只推重叠的，O(n)）
+  const onNodeDrag = useCallback((_: unknown, moved: Node) => {
+    setNodes(current => {
+      const others = current.filter(item => item.id !== moved.id)
+      const pushed = pushAway(moved, others)
+      const byId = new Map(pushed.map(item => [item.id, item]))
+      return current.map(item => item.id === moved.id ? moved : (byId.get(item.id) ?? item))
+    })
+  }, [setNodes])
+
   // 拖拽结束：官方 resolveCollisions（多轮迭代，沿小轴推开）
   const onNodeDragStop = useCallback(() => {
     setNodes(current => resolveCollisions(current, { maxIterations: 50, overlapThreshold: 0.5, margin: 8 }))
@@ -112,6 +127,7 @@ export function Canvas({ tree, edges, onOpen }: {
 
       nodes={nodes}
       onNodesChange={onNodesChange}
+      onNodeDrag={onNodeDrag}
       onNodeDragStop={onNodeDragStop}
       edges={flowEdges}
       nodeTypes={nodeTypes}
