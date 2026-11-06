@@ -1,4 +1,4 @@
-/** 圆形扩散布局（返回位置 + 父子关系 + 半径，供"沿圆周旋转"用）。 */
+/** 圆形扩散布局（词块树方式：每个节点展开后，子节点围绕它全圆 360°，半径按占位递增）。 */
 import type { TreeNode } from '../../../shared/types'
 
 export interface LayoutResult {
@@ -24,8 +24,11 @@ export function radialLayout(tree: TreeNode, expanded: ReadonlySet<string>): Lay
     const children = node.children
     if (children.length === 0) return
 
+    // 半径 = 占位 × 间距 / 2π（子节点越多/越深，圆越大；子节点在父节点的圆外）
     const totalOcc = children.reduce((sum, child) => sum + occupancy(child, expanded), 0)
-    const r = Math.max(140, (totalOcc * 200) / (2 * Math.PI))
+    const r = Math.max(150, (totalOcc * 200) / (2 * Math.PI))
+
+    // 全圆（360°），角度按占位比例
     let angle = -Math.PI / 2
     for (const child of children) {
       const span = (2 * Math.PI) * occupancy(child, expanded) / totalOcc
@@ -36,17 +39,19 @@ export function radialLayout(tree: TreeNode, expanded: ReadonlySet<string>): Lay
     }
   }
 
+  // 根在中心（有子节点的根）
   const roots = tree.children.filter(root => root.children.length > 0)
   if (roots.length === 1) {
     place(roots[0], 0, 0, null)
   } else if (roots.length > 1) {
     const totalOcc = roots.reduce((sum, root) => sum + occupancy(root, expanded), 0)
-    const R = Math.max(240, (totalOcc * 90) / (2 * Math.PI))
+    const R = Math.max(240, (totalOcc * 200) / (2 * Math.PI))
     let angle = -Math.PI / 2
     for (const root of roots) {
       const span = (2 * Math.PI) * occupancy(root, expanded) / totalOcc
       const theta = angle + span / 2
       angle += span
+      radii.set(root.id, R)
       place(root, R * Math.cos(theta), R * Math.sin(theta), null)
     }
   }
