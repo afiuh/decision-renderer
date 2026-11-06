@@ -1,221 +1,71 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { resolveCollisions } from './collision'
-import { pushAway } from './liveCollision'
-import { ReactFlow, Background, Controls, useNodesState, type Node, type Edge, type ReactFlowInstance } from '@xyflow/react'
-import { radialLayout } from './radialLayout'
-import { NodeCard } from './NodeCard'
-import { RoutedEdge } from './RoutedEdge'
-import { useEdgeRouting } from 'reactflow-edge-routing'
-import { ContentNode } from './ContentNode'
+import { useMemo } from 'react'
+import { ReactFlow, Background, Controls, type Node } from '@xyflow/react'
 import type { TreeEdge, TreeNode } from '../../../shared/types'
+import { useLayout } from '../layout/useLayout'
+import { useDrag } from '../drag/useDrag'
+import { useContent } from '../content/useContent'
+import { NodeCard } from './NodeCard'
+import { ContentNode } from './ContentNode'
+import { RoutedEdge } from './RoutedEdge'
 
 const nodeTypes = { card: NodeCard, content: ContentNode }
 const edgeTypes = { routed: RoutedEdge }
-const NODE_W = 180
-const NODE_H = 56
 
-/** 树 → 扁平列表（只收可见节点：根 + 展开的子孙）。 */
-function visibleNodes(tree: TreeNode, expanded: ReadonlySet<string>): TreeNode[] {
-  const result: TreeNode[] = []
-  const walk = (node: TreeNode): void => {
-    result.push(node)
-    if (expanded.has(node.id)) {
-      for (const child of node.children) walk(child)
-    }
-  }
-  for (const child of tree.children) if (child.children.length > 0) walk(child)
-  return result
-}
-
-export function Canvas({ tree, edges, onOpen, workspace }: {
+/** 画布：拼装（布局 + 拖动 + 内容 + 边）。 */
+export function Canvas({ tree, edges, workspace }: {
   tree: TreeNode | null
   edges: readonly TreeEdge[]
-  onOpen: (id: string) => void
   workspace: string
 }) {
-  const flowRef = useRef<ReactFlowInstance | null>(null)
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
-  const [seededPath, setSeededPath] = useState<string | null>(null)
-  useEffect(() => {
-    if (tree === null || seededPath === tree.path) return
-    const first = tree.children.find(child => child.children.length > 0) ?? tree.children[0]
-    setExpanded(new Set(first === undefined ? [] : [first.id]))
-    setSeededPath(tree.path)
-  }, [tree, seededPath])
+  const { flowRef, nodes, setNodes, onNodesChange, layout } = useLayout(tree, workspace)
+  const drag = useDrag(
+    layout?.parents ?? new Map<string, string>(),
+    layout?.radii ?? new Map<string, number>(),
+    layout?.descendants ?? new Map<string, string[]>(),
+    setNodes,
+  )
+  const { openContent } = useContent(workspace, setNodes)
 
-  const toggle = useCallback((id: string) => {
-    console.log('[toggle]', id)
-    setExpanded(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
-
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
-  // 切工作区时：读 layout + fitView（拖拽/树更新不重置缩放）
-  useEffect(() => {
-    void fetch(`/api/layout?workspace=${encodeURIComponent(workspace)}`)
-      .then(response => response.json() as Promise<Record<string, { x: number; y: number }>>)
-      .then(saved => {
-        if (Object.keys(saved).length === 0) return
-        setNodes(current => current.map(item => saved[item.id] === undefined ? item : { ...item, position: saved[item.id] }))
-      })
-      .catch(() => {})
-    const timer = setTimeout(() => flowRef.current?.fitView({ padding: 0.2, maxZoom: 1, minZoom: 0.1 }), 300)
-    return () => clearTimeout(timer)
-  }, [workspace, setNodes])
-  const openContent = useCallback(async (id: string) => {
-    const response = await fetch(`/api/node/${encodeURIComponent(id)}?workspace=${encodeURIComponent(workspace)}`)
-    const node = await response.json() as { id: string; title: string; path: string; markdown: string }
-    setNodes(prev => {
-      const filtered = prev.filter(item => item.id !== `content-${id}`)
-      const offset = filtered.filter(item => item.type === 'content').length
-      // 初始位置：视口右侧空白（避开左侧节点树），多个内容节点依次偏移
-      const withContent = [...filtered, {
-        id: `content-${id}`,
-        type: 'content',
-        parentId: id,
-        position: { x: 220 + offset * 40, y: -60 + offset * 40 },
-        width: 520,
-        height: 420,
-        data: { node, workspace, onClose: () => setNodes(list => list.filter(item => item.id !== `content-${id}`)) },
-        style: { width: 520, height: 420 },
-      }]
-      // 新增内容节点后推挤所有重叠（含节点）
-      return withContent
-    })
-  }, [setNodes])
-
-  const layoutResult = useMemo(() => (tree === null ? null : radialLayout(tree, expanded)), [tree, expanded])
-  const parents = layoutResult?.parents ?? new Map<string, string>()
-  const radii = layoutResult?.radii ?? new Map<string, number>()
-  const descendants = layoutResult?.descendants ?? new Map<string, string[]>()
-
-  const { computedNodes, flowEdges } = useMemo(() => {
-    if (tree === null || layoutResult === null) return { computedNodes: [] as Node[], flowEdges: [] as Edge[] }
-    const visible = visibleNodes(tree, expanded)
-    const positions = layoutResult.positions
-    const built: Node[] = visible.map(node => ({
-      id: node.id,
-      type: 'card',
-      position: (() => { const center = positions.get(node.id) ?? { x: 0, y: 0 }; return { x: center.x - 90, y: center.y - 28 } })(),
-      data: { title: node.title, status: node.status, dirty: node.dirty, hasChildren: node.children.length > 0, expanded: expanded.has(node.id), onToggle: () => toggle(node.id) },
-    }))
-    const ids = new Set(visible.map(node => node.id))
-    const flowEdges: Edge[] = edges
-      .filter(edge => edge.from !== '__root__' && ids.has(edge.from) && ids.has(edge.to))
+  const flowEdges = useMemo(() => {
+    if (layout === null) return []
+    return edges
+      .filter(edge => edge.from !== '__root__' && layout.positions.has(edge.from) && layout.positions.has(edge.to))
       .map(edge => ({ id: `${edge.from}->${edge.to}`, source: edge.from, target: edge.to, type: 'routed', style: { stroke: '#94a3b8', strokeWidth: 1.5 } }))
-    return { computedNodes: built, flowEdges }
-  }, [tree, edges, expanded, toggle])
+  }, [edges, layout])
 
-  // 展开/折叠/切树时合并布局：新节点用布局位置，已有节点保留用户拖动的位置
-  useEffect(() => {
-    setNodes(prev => {
-      const existing = new Map(prev.map(item => [item.id, item]))
-      const treeNodes = computedNodes.map(item => existing.get(item.id) ?? item)
-      const contentNodes = prev.filter(item => item.type === 'content')  // 保留内容节点
-      return [...treeNodes, ...contentNodes]
-    })
-  }, [computedNodes, setNodes])
-
-  const { updateRoutingOnNodesChange, resetRouting } = useEdgeRouting(nodes, flowEdges, {
-    connectorType: 'orthogonal',
-    edgeRounding: 12,
-    edgeToEdgeSpacing: 4,
-    edgeToNodeSpacing: 8,
-    autoBestSideConnection: false,
-  })
-
-  const handleNodesChange = useCallback((changes: Parameters<typeof onNodesChange>[0]) => {
-    onNodesChange(changes)
-    updateRoutingOnNodesChange(changes)
-  }, [onNodesChange, updateRoutingOnNodesChange])
-
-  // 展开/折叠后重新 fitView（子节点可能超出视口）
-  useEffect(() => {
-    const timer = setTimeout(() => flowRef.current?.fitView({ padding: 0.15, maxZoom: 1, minZoom: 0.1 }), 200)
-    return () => clearTimeout(timer)
-  }, [expanded])
-
-  // 拖拽中：实时推挤（只推重叠的，O(n)）
-  const dragStartRef = useRef<{ x: number; y: number } | null>(null)
-
-  const onNodeDragStart = useCallback((_: unknown, node: Node) => {
-    dragStartRef.current = { x: node.position.x, y: node.position.y }
-  }, [])
-
-  const onNodeDrag = useCallback((_: unknown, moved: Node) => {
-    const parentId = parents.get(moved.id)
-    const radius = radii.get(moved.id)
-    if (parentId === undefined || radius === undefined) return
-    queueMicrotask(() => {
-      setNodes(current => {
-        const parent = current.find(item => item.id === parentId)
-        if (parent === undefined) return current
-        const angle = Math.atan2(moved.position.y - parent.position.y, moved.position.x - parent.position.x)
-        const position = { x: parent.position.x + radius * Math.cos(angle), y: parent.position.y + radius * Math.sin(angle) }
-        const old = dragStartRef.current ?? position
-        const delta = { x: position.x - old.x, y: position.y - old.y }
-        const kids = new Set(descendants.get(moved.id) ?? [])
-        return current.map(item => {
-          if (item.id === moved.id) return { ...item, position }
-          if (kids.has(item.id)) return { ...item, position: { x: item.position.x + delta.x, y: item.position.y + delta.y } }
-          return item
-        })
-      })
-    })
-  }, [parents, radii, setNodes])
-
-  // 拖拽结束：官方 resolveCollisions（多轮迭代，沿小轴推开）
-  // 右键：重命名 / 删除
-  const onNodeContextMenu = useCallback((event: React.MouseEvent, node: Node) => {
+  const onNodeContextMenu = (event: React.MouseEvent, node: Node): void => {
     if (node.type !== 'card') return
     event.preventDefault()
-    const title = window.prompt('新标题（留空=删除该节点）', String(node.data.title ?? ''))
+    const title = window.prompt('新标题（留空=删除）', String(node.data.title ?? ''))
     if (title === null) return
     if (title.trim() === '') {
-      if (!window.confirm(`删除「${String(node.data.title)}」及其子节点？`)) return
-      void fetch(`/api/node/${encodeURIComponent(node.id)}?workspace=${encodeURIComponent(workspace)}`, { method: 'DELETE' })
+      if (window.confirm(`删除「${String(node.data.title)}」及其子节点？`)) {
+        void fetch(`/api/node/${encodeURIComponent(node.id)}?workspace=${encodeURIComponent(workspace)}`, { method: 'DELETE' })
+      }
       return
     }
-    if (title.trim() === String(node.data.title)) return
-    void fetch(`/api/node/${encodeURIComponent(node.id)}?workspace=${encodeURIComponent(workspace)}`, {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ title: title.trim() }),
-    })
-  }, [workspace])
-
-  const onNodeDragStop = useCallback(() => {
-    setNodes(current => {
-      const resolved = resolveCollisions(current, { maxIterations: 50, overlapThreshold: 0.5, margin: 8 })
-      const layout: Record<string, { x: number; y: number }> = {}
-      for (const item of resolved) layout[item.id] = item.position
-      void fetch(`/api/layout?workspace=${encodeURIComponent(workspace)}`, {
-        method: 'POST',
+    if (title.trim() !== String(node.data.title)) {
+      void fetch(`/api/node/${encodeURIComponent(node.id)}?workspace=${encodeURIComponent(workspace)}`, {
+        method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(layout),
+        body: JSON.stringify({ title: title.trim() }),
       })
-      return resolved
-    })
-  }, [setNodes, workspace])
+    }
+  }
 
   return (
     <ReactFlow
       onInit={instance => { flowRef.current = instance }}
-
       nodes={nodes}
-      onNodesChange={handleNodesChange}
-      onNodeDragStart={onNodeDragStart}
-      onNodeDrag={onNodeDrag}
-      onNodeContextMenu={onNodeContextMenu}
-      onNodeDragStop={onNodeDragStop}
       edges={flowEdges}
-      edgeTypes={edgeTypes}
       nodeTypes={nodeTypes}
-      onNodeClick={(_, node) => { if (node.type === 'card') { onOpen(node.id); void openContent(node.id) } }}
+      edgeTypes={edgeTypes}
+      onNodesChange={onNodesChange}
+      onNodeClick={(_, node) => { if (node.type === 'card') void openContent(node.id) }}
+      onNodeContextMenu={onNodeContextMenu}
+      onNodeDragStart={drag.onNodeDragStart}
+      onNodeDrag={drag.onNodeDrag}
+      onNodeDragStop={drag.onNodeDragStop}
       fitView
       maxZoom={1}
       minZoom={0.1}

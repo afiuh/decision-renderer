@@ -6,14 +6,13 @@ import CodeMirror from '@uiw/react-codemirror'
 import { markdown } from '@codemirror/lang-markdown'
 import type { NodeContent } from '../../../shared/types'
 
-/** 画布内的内容节点（跟画布缩放/平移）。 */
 export function ContentNode({ data }: NodeProps) {
   const node = data.node as NodeContent
+  const workspace = String(data.workspace ?? 'dshiunx')
+  const onClose = data.onClose as () => void
   const [editing, setEditing] = useState(false)
   const [text, setText] = useState(node.markdown)
   const [saving, setSaving] = useState(false)
-  const onClose = data.onClose as () => void
-  const workspace = String(data.workspace ?? 'dshiunx')
 
   const save = async (): Promise<void> => {
     setSaving(true)
