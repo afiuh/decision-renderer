@@ -30,10 +30,11 @@ export function radialLayout(tree: TreeNode, expanded: ReadonlySet<string>): Lay
       descendants.set(node.id, node.children.flatMap(collect))
     }
     if (!expanded.has(node.id) || node.children.length === 0) return
-    const r = Math.max(NODE + GAP, Math.max(...node.children.map(child => circleRadius(child, expanded))) + NODE + GAP)
     const span = (2 * Math.PI) / node.children.length
     node.children.forEach((child, index) => {
       const theta = -Math.PI / 2 + (index + 0.5) * span
+      // 每个子节点单独算：连线长度 = 子节点的占地面积（circleRadius）+ 节点 + 间隙
+      const r = Math.max(NODE + GAP, circleRadius(child, expanded) + NODE + GAP)
       radii.set(child.id, r)
       place(child, cx + r * Math.cos(theta), cy + r * Math.sin(theta), node.id)
     })
@@ -43,10 +44,10 @@ export function radialLayout(tree: TreeNode, expanded: ReadonlySet<string>): Lay
   if (roots.length === 1) {
     place(roots[0], 0, 0, null)
   } else if (roots.length > 1) {
-    const R = Math.max(NODE + GAP, Math.max(...roots.map(root => circleRadius(root, expanded))) + NODE + GAP)
     const span = (2 * Math.PI) / roots.length
     roots.forEach((root, index) => {
       const theta = -Math.PI / 2 + (index + 0.5) * span
+      const R = Math.max(NODE + GAP, circleRadius(root, expanded) + NODE + GAP)
       radii.set(root.id, R)
       place(root, R * Math.cos(theta), R * Math.sin(theta), null)
     })
