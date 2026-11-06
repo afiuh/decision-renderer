@@ -1,6 +1,6 @@
 import Fastify from 'fastify'
 import { WebSocketServer } from 'ws'
-import { parseTree, readNode, writeNode, createNode, searchNodes } from './parse.ts'
+import { parseTree, readNode, writeNode, createNode, searchNodes, deleteNode, renameNode } from './parse.ts'
 import { rootOf, listWorkspaces } from './workspaces.ts'
 import { readLayout, writeLayout, type Layout } from './layout.ts'
 import { watchTree } from './watch.ts'
@@ -14,9 +14,9 @@ app.post<{ Querystring: { workspace?: string }; Body: Layout }>('/api/layout', a
   await writeLayout(rootOf(request.query.workspace), request.body)
   return { ok: true }
 })
-app.get<{ Params: { id: string }; Querystring: { workspace?: string } }>('/api/node/:id', async request => readNode(request.params.id, rootOf(request.query.workspace)))
-app.post<{ Params: { id: string }; Querystring: { workspace?: string }; Body: { markdown: string } }>('/api/node/:id', async request => {
-  await writeNode(request.params.id, request.body.markdown, rootOf(request.query.workspace))
+app.get<{ Params: { '*': string }; Querystring: { workspace?: string } }>('/api/node/*', async request => readNode(request.params['*'], rootOf(request.query.workspace)))
+app.post<{ Params: { '*': string }; Querystring: { workspace?: string }; Body: { markdown: string } }>('/api/node/*', async request => {
+  await writeNode(request.params['*'], request.body.markdown, rootOf(request.query.workspace))
   return { ok: true }
 })
 app.post<{ Querystring: { workspace?: string }; Body: { parent: string; title: string; markdown?: string } }>('/api/node', async request => {
@@ -24,6 +24,14 @@ app.post<{ Querystring: { workspace?: string }; Body: { parent: string; title: s
   return { id }
 })
 app.get<{ Querystring: { q: string; workspace?: string } }>('/api/search', async request => searchNodes(request.query.q, rootOf(request.query.workspace)))
+app.delete<{ Params: { '*': string }; Querystring: { workspace?: string } }>('/api/node/*', async request => {
+  await deleteNode(request.params['*'], rootOf(request.query.workspace))
+  return { ok: true }
+})
+app.patch<{ Params: { '*': string }; Querystring: { workspace?: string }; Body: { title: string } }>('/api/node/*', async request => {
+  const id = await renameNode(request.params['*'], request.body.title, rootOf(request.query.workspace))
+  return { id }
+})
 
 const server = await app.listen({ port: 7341, host: '127.0.0.1' })
 console.log(`[server] http://127.0.0.1:7341`)

@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile, stat, mkdir } from 'node:fs/promises'
+import { readdir, readFile, writeFile, stat, mkdir, rm, rename } from 'node:fs/promises'
 import { join, relative, dirname } from 'node:path'
 import type { TreeNode, TreeEdge, NodeContent } from '../../shared/types.ts'
 import { dirtyFiles } from './git.ts'
@@ -109,4 +109,26 @@ export async function searchNodes(query: string, root: string = ROOT): Promise<A
   }
   await walk(root)
   return hits.slice(0, 50)
+}
+
+/** 删除节点（文件 + 子节点文件夹）。 */
+export async function deleteNode(id: string, root: string = ROOT): Promise<void> {
+  const path = join(root, `${id}.md`)
+  const folder = join(root, `${id}-子节点`)
+  await rm(path, { force: true })
+  await rm(folder, { recursive: true, force: true })
+}
+
+/** 重命名节点（文件 + 子节点文件夹同步改名）。 */
+export async function renameNode(id: string, nextTitle: string, root: string = ROOT): Promise<string> {
+  const parts = id.split('/')
+  const oldName = parts.pop() ?? id
+  const parent = parts.join('/')
+  const nextId = parent === '' ? nextTitle : `${parent}/${nextTitle}`
+  await rename(join(root, `${id}.md`), join(root, `${nextId}.md`))
+  try {
+    await stat(join(root, `${id}-子节点`))
+    await rename(join(root, `${id}-子节点`), join(root, `${nextId}-子节点`))
+  } catch { /* 没有子节点文件夹 */ }
+  return nextId
 }

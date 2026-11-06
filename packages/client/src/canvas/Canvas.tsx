@@ -132,11 +132,30 @@ export function Canvas({ tree, edges, onOpen, workspace }: {
   }, [setNodes])
 
   // 拖拽结束：官方 resolveCollisions（多轮迭代，沿小轴推开）
+  // 右键：重命名 / 删除
+  const onNodeContextMenu = useCallback((event: React.MouseEvent, node: Node) => {
+    if (node.type !== 'card') return
+    event.preventDefault()
+    const title = window.prompt('新标题（留空=删除该节点）', String(node.data.title ?? ''))
+    if (title === null) return
+    if (title.trim() === '') {
+      if (!window.confirm(`删除「${String(node.data.title)}」及其子节点？`)) return
+      void fetch(`/api/node/${encodeURIComponent(node.id)}?workspace=${encodeURIComponent(workspace)}`, { method: 'DELETE' })
+      return
+    }
+    if (title.trim() === String(node.data.title)) return
+    void fetch(`/api/node/${encodeURIComponent(node.id)}?workspace=${encodeURIComponent(workspace)}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: title.trim() }),
+    })
+  }, [workspace])
+
   const onNodeDragStop = useCallback(() => {
     setNodes(current => {
       const resolved = resolveCollisions(current, { maxIterations: 50, overlapThreshold: 0.5, margin: 8 })
       const layout: Record<string, { x: number; y: number }> = {}
-      for (const item of resolved) if (item.type === 'card') layout[item.id] = item.position
+      for (const item of resolved) layout[item.id] = item.position
       void fetch(`/api/layout?workspace=${encodeURIComponent(workspace)}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -153,6 +172,7 @@ export function Canvas({ tree, edges, onOpen, workspace }: {
       nodes={nodes}
       onNodesChange={onNodesChange}
       onNodeDrag={onNodeDrag}
+      onNodeContextMenu={onNodeContextMenu}
       onNodeDragStop={onNodeDragStop}
       edges={flowEdges}
       nodeTypes={nodeTypes}
