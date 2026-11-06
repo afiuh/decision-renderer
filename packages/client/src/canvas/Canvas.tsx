@@ -121,6 +121,12 @@ export function Canvas({ tree, edges, onOpen, workspace }: {
     updateRoutingOnNodesChange(changes)
   }, [onNodesChange, updateRoutingOnNodesChange])
 
+  // 展开/折叠后重新 fitView（子节点可能超出视口）
+  useEffect(() => {
+    const timer = setTimeout(() => flowRef.current?.fitView({ padding: 0.15, maxZoom: 1, minZoom: 0.1 }), 200)
+    return () => clearTimeout(timer)
+  }, [expanded])
+
   // 拖拽中：实时推挤（只推重叠的，O(n)）
   const onNodeDrag = useCallback((_: unknown, moved: Node) => {
     setNodes(current => {

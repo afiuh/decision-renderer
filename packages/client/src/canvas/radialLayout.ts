@@ -9,7 +9,7 @@ export function radialLayout(tree: TreeNode, expanded: ReadonlySet<string>): Map
     if (!expanded.has(node.id)) return
     const children = node.children
     if (children.length === 0) return
-    const r = Math.max(300, children.length * 72)
+    const r = Math.max(300, children.length * 105)
     const span = spread / children.length
     let angle = baseAngle - spread / 2
     for (const child of children) {
