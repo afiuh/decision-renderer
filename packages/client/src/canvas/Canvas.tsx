@@ -109,6 +109,7 @@ export function Canvas({ tree, edges, onOpen, workspace }: {
 
   const parents = useMemo(() => (tree === null ? new Map<string, string>() : radialLayout(tree, expanded).parents), [tree, expanded])
   const radii = useMemo(() => (tree === null ? new Map<string, number>() : radialLayout(tree, expanded).radii), [tree, expanded])
+  const descendants = useMemo(() => (tree === null ? new Map<string, string[]>() : radialLayout(tree, expanded).descendants), [tree, expanded])
 
   // 展开/折叠/切树时合并布局：新节点用布局位置，已有节点保留用户拖动的位置
   useEffect(() => {
@@ -150,7 +151,14 @@ export function Canvas({ tree, edges, onOpen, workspace }: {
         if (parent === undefined) return current
         const angle = Math.atan2(moved.position.y - parent.position.y, moved.position.x - parent.position.x)
         const position = { x: parent.position.x + radius * Math.cos(angle), y: parent.position.y + radius * Math.sin(angle) }
-        return current.map(item => item.id === moved.id ? { ...item, position } : item)
+        const old = current.find(item => item.id === moved.id)?.position ?? position
+        const delta = { x: position.x - old.x, y: position.y - old.y }
+        const kids = new Set(descendants.get(moved.id) ?? [])
+        return current.map(item => {
+          if (item.id === moved.id) return { ...item, position }
+          if (kids.has(item.id)) return { ...item, position: { x: item.position.x + delta.x, y: item.position.y + delta.y } }
+          return item
+        })
       })
     })
   }, [parents, radii, setNodes])

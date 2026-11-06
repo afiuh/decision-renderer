@@ -5,6 +5,7 @@ export interface LayoutResult {
   positions: Map<string, { x: number; y: number }>
   parents: Map<string, string>
   radii: Map<string, number>
+  descendants: Map<string, string[]>
 }
 
 const NODE = 140         // 节点尺寸（卡片宽）
@@ -21,10 +22,14 @@ export function radialLayout(tree: TreeNode, expanded: ReadonlySet<string>): Lay
   const positions = new Map<string, { x: number; y: number }>()
   const parents = new Map<string, string>()
   const radii = new Map<string, number>()
+  const descendants = new Map<string, string[]>()
 
   const place = (node: TreeNode, cx: number, cy: number, parentId: string | null): void => {
     positions.set(node.id, { x: cx, y: cy })
     if (parentId !== null) parents.set(node.id, parentId)
+    // 记录所有子孙（拖动时跟随）
+    const collect = (n: TreeNode): string[] => expanded.has(n.id) ? [n.id, ...n.children.flatMap(collect)] : [n.id]
+    if (node.children.length > 0) descendants.set(node.id, node.children.flatMap(collect))
     if (!expanded.has(node.id)) return
     const children = node.children
     if (children.length === 0) return
@@ -57,5 +62,5 @@ export function radialLayout(tree: TreeNode, expanded: ReadonlySet<string>): Lay
       place(root, R * Math.cos(theta), R * Math.sin(theta), null)
     }
   }
-  return { positions, parents, radii }
+  return { positions, parents, radii, descendants }
 }
