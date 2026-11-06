@@ -50,6 +50,13 @@ body {
 .hits strong { font-size: 13px; font-weight: 600; }
 .hits span { font-size: 11.5px; color: #6b7c90; line-height: 1.4; }
 
+.canvas { flex: 1; min-height: 0; position: relative; }
+.canvas > .react-flow { height: 100%; }
+
+.canvas.grabbing .react-flow__pane { cursor: grab; }
+.canvas.grabbing .react-flow__pane:active { cursor: grabbing; }
+.canvas.grabbing .react-flow__node { pointer-events: none; }
+
 .react-flow__node-card { width: auto; }
 
 .card {
