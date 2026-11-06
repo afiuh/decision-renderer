@@ -207,12 +207,35 @@ body {
 .body { flex: 1; display: flex; min-height: 0; }
 
 .sidebar {
-  width: 230px; flex: none;
+  flex: none;
+  position: relative;
   border-right: 1px solid #e6ecf3;
   background: #fbfcfe;
-  overflow: auto;
+  overflow: hidden;
   font-size: 13px;
+  transition: width .12s ease;
 }
+.sidebar[data-collapsed="true"] { transition: width .12s ease; }
+
+.sidebar .grip {
+  position: absolute; top: 0; bottom: 0; right: 0;
+  width: 6px; z-index: 20;
+  cursor: col-resize; touch-action: none;
+}
+.sidebar .grip:hover { background: #0f172a; opacity: .18; }
+
+.sidebar .collapse-edge {
+  position: absolute; right: -8px; top: 50%; transform: translateY(-50%);
+  width: 16px; height: 16px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid #d8e0ea; border-radius: 50%;
+  background: #fff; color: #41546b;
+  cursor: pointer; z-index: 30;
+}
+.sidebar .collapse-edge:hover { border-color: #0f172a; color: #0f172a; }
+
+.sidebar > .group-head, .sidebar > .project-list { max-width: 100%; }
+.project-list { overflow: auto; max-height: calc(100% - 40px); }
 
 .group-head {
   display: flex; align-items: center; justify-content: space-between;
