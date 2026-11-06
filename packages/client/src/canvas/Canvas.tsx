@@ -69,9 +69,16 @@ export function Canvas({ tree, edges, onOpen, workspace }: {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   useEffect(() => {
     if (tree === null) return
+    void fetch(`/api/layout?workspace=${encodeURIComponent(workspace)}`)
+      .then(response => response.json() as Promise<Record<string, { x: number; y: number }>>)
+      .then(saved => {
+        if (Object.keys(saved).length === 0) return
+        setNodes(current => current.map(item => saved[item.id] === undefined ? item : { ...item, position: saved[item.id] }))
+      })
+      .catch(() => {})
     const timer = setTimeout(() => flowRef.current?.fitView({ padding: 0.2, minZoom: 0.1 }), 150)
     return () => clearTimeout(timer)
-  }, [tree])
+  }, [tree, workspace, setNodes])
   const openContent = useCallback(async (id: string) => {
     const response = await fetch(`/api/node/${encodeURIComponent(id)}?workspace=${encodeURIComponent(workspace)}`)
     const node = await response.json() as { id: string; title: string; path: string; markdown: string }
@@ -126,8 +133,18 @@ export function Canvas({ tree, edges, onOpen, workspace }: {
 
   // 拖拽结束：官方 resolveCollisions（多轮迭代，沿小轴推开）
   const onNodeDragStop = useCallback(() => {
-    setNodes(current => resolveCollisions(current, { maxIterations: 50, overlapThreshold: 0.5, margin: 8 }))
-  }, [setNodes])
+    setNodes(current => {
+      const resolved = resolveCollisions(current, { maxIterations: 50, overlapThreshold: 0.5, margin: 8 })
+      const layout: Record<string, { x: number; y: number }> = {}
+      for (const item of resolved) if (item.type === 'card') layout[item.id] = item.position
+      void fetch(`/api/layout?workspace=${encodeURIComponent(workspace)}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(layout),
+      })
+      return resolved
+    })
+  }, [setNodes, workspace])
 
   return (
     <ReactFlow

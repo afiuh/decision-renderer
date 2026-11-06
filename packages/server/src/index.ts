@@ -2,12 +2,18 @@ import Fastify from 'fastify'
 import { WebSocketServer } from 'ws'
 import { parseTree, readNode, writeNode, createNode, searchNodes } from './parse.ts'
 import { rootOf, listWorkspaces } from './workspaces.ts'
+import { readLayout, writeLayout, type Layout } from './layout.ts'
 import { watchTree } from './watch.ts'
 
 const app = Fastify({ logger: false })
 
 app.get('/api/workspaces', async () => listWorkspaces())
 app.get<{ Querystring: { workspace?: string } }>('/api/tree', async request => parseTree(rootOf(request.query.workspace)))
+app.get<{ Querystring: { workspace?: string } }>('/api/layout', async request => readLayout(rootOf(request.query.workspace)))
+app.post<{ Querystring: { workspace?: string }; Body: Layout }>('/api/layout', async request => {
+  await writeLayout(rootOf(request.query.workspace), request.body)
+  return { ok: true }
+})
 app.get<{ Params: { id: string }; Querystring: { workspace?: string } }>('/api/node/:id', async request => readNode(request.params.id, rootOf(request.query.workspace)))
 app.post<{ Params: { id: string }; Querystring: { workspace?: string }; Body: { markdown: string } }>('/api/node/:id', async request => {
   await writeNode(request.params.id, request.body.markdown, rootOf(request.query.workspace))
