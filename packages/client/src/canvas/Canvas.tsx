@@ -66,6 +66,11 @@ export function Canvas({ tree, edges, onOpen }: {
   }, [])
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
+  useEffect(() => {
+    if (tree === null) return
+    const timer = setTimeout(() => flowRef.current?.fitView({ padding: 0.2, minZoom: 0.1 }), 150)
+    return () => clearTimeout(timer)
+  }, [tree])
   const openContent = useCallback(async (id: string) => {
     const response = await fetch(`/api/node/${encodeURIComponent(id)}`)
     const node = await response.json() as { id: string; title: string; path: string; markdown: string }
