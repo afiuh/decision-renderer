@@ -77,7 +77,8 @@ export function Canvas({ tree, edges, onOpen, workspace }: {
       const withContent = [...filtered, {
         id: `content-${id}`,
         type: 'content',
-        position: { x: screen.x + offset * 40, y: screen.y + offset * 40 },
+        parentId: id,
+        position: { x: 220 + offset * 40, y: -60 + offset * 40 },
         width: 520,
         height: 420,
         data: { node, workspace, onClose: () => setNodes(list => list.filter(item => item.id !== `content-${id}`)) },
@@ -113,19 +114,13 @@ export function Canvas({ tree, edges, onOpen, workspace }: {
   useEffect(() => {
     setNodes(prev => {
       const existing = new Map(prev.map(item => [item.id, item]))
-      return computedNodes.map(item => existing.get(item.id) ?? item)
+      const treeNodes = computedNodes.map(item => existing.get(item.id) ?? item)
+      const contentNodes = prev.filter(item => item.type === 'content')  // 保留内容节点
+      return [...treeNodes, ...contentNodes]
     })
   }, [computedNodes, setNodes])
 
-  const contentEdges = useMemo(() => { ; return nodes.filter(item => item.type === 'content').map(item => ({
-    id: `content-edge-${item.id}`,
-    source: item.id,
-    target: item.id.replace(/^content-/, ''),
-    type: 'routed',
-    style: { strokeDasharray: '4 4', stroke: '#94a3b8', strokeWidth: 1 },
-  })) }, [nodes])
-
-  const { updateRoutingOnNodesChange, resetRouting } = useEdgeRouting(nodes, [...flowEdges, ...contentEdges], {
+  const { updateRoutingOnNodesChange, resetRouting } = useEdgeRouting(nodes, flowEdges, {
     connectorType: 'orthogonal',
     edgeRounding: 12,
     edgeToEdgeSpacing: 4,
@@ -201,7 +196,7 @@ export function Canvas({ tree, edges, onOpen, workspace }: {
       onNodeDrag={onNodeDrag}
       onNodeContextMenu={onNodeContextMenu}
       onNodeDragStop={onNodeDragStop}
-      edges={[...flowEdges, ...contentEdges]}
+      edges={flowEdges}
       edgeTypes={edgeTypes}
       nodeTypes={nodeTypes}
       onNodeClick={(_, node) => { if (node.type === 'card') { onOpen(node.id); void openContent(node.id) } }}
