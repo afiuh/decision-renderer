@@ -1,4 +1,7 @@
 import Fastify from 'fastify'
+import fastifyStatic from '@fastify/static'
+import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { WebSocketServer } from 'ws'
 import { parseTree, readNode, writeNode, createNode, searchNodes, deleteNode, renameNode } from './parse.ts'
 import { rootOf, listWorkspaces } from './workspaces.ts'
@@ -6,6 +9,12 @@ import { readLayout, writeLayout, type Layout } from './layout.ts'
 import { watchTree } from './watch.ts'
 
 const app = Fastify({ logger: false })
+
+// 生产：静态服务 client/dist（存在才注册）
+const dist = join(fileURLToPath(new URL('.', import.meta.url)), '../../client/dist')
+try {
+  await app.register(fastifyStatic, { root: dist, prefix: '/' })
+} catch { /* 开发时没有 dist */ }
 
 app.get('/api/workspaces', async () => listWorkspaces())
 app.get<{ Querystring: { workspace?: string } }>('/api/tree', async request => parseTree(rootOf(request.query.workspace)))

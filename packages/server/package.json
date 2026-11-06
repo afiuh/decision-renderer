@@ -7,6 +7,7 @@
     "mcp": "tsx src/mcp.ts"
   },
   "dependencies": {
+    "@fastify/static": "^10.1.10",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "chokidar": "^4.0.0",
     "fastify": "^5.0.0",

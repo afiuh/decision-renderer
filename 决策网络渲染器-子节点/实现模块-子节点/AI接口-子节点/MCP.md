@@ -10,6 +10,10 @@
 
 `@modelcontextprotocol/sdk`（MIT）。
 
-## 状态
+## 状态（2026-11-06）
 
-可选，先做 HTTP。
+✅ 已实现（stdio MCP server）：
+- `list_workspaces` / `list_tree` / `read_node`
+- `search` / `create_node` / `write_node`
+- 启动：`npm run mcp -w packages/server`
+- 验证：initialize + tools/list 握手成功
