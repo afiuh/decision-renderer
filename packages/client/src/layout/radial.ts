@@ -34,7 +34,8 @@ export function radialLayout(tree: TreeNode, expanded: ReadonlySet<string>): Lay
     node.children.forEach((child, index) => {
       const theta = -Math.PI / 2 + (index + 0.5) * span
       // 每个子节点单独算：连线长度 = 子节点的占地面积（circleRadius）+ 节点 + 间隙
-      const r = Math.max(NODE + GAP, circleRadius(child, expanded) + NODE + GAP)
+      const cr = circleRadius(child, expanded)
+      const r = Math.max(NODE + GAP, cr + NODE + GAP)
       radii.set(child.id, r)
       place(child, cx + r * Math.cos(theta), cy + r * Math.sin(theta), node.id)
     })
