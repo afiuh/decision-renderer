@@ -72,10 +72,12 @@ export function Canvas({ tree, edges, onOpen }: {
     setNodes(prev => {
       const filtered = prev.filter(item => item.id !== `content-${id}`)
       const offset = filtered.filter(item => item.type === 'content').length
+      // 初始位置：视口右侧空白（避开左侧节点树），多个内容节点依次偏移
+      const screen = flowRef.current?.screenToFlowPosition({ x: window.innerWidth - 620, y: window.innerHeight / 2 }) ?? { x: 200, y: 80 }
       const withContent = [...filtered, {
         id: `content-${id}`,
         type: 'content',
-        position: { x: 120 + offset * 40, y: 120 + offset * 40 },
+        position: { x: screen.x + offset * 40, y: screen.y + offset * 40 },
         width: 520,
         height: 420,
         data: { node, onClose: () => setNodes(list => list.filter(item => item.id !== `content-${id}`)) },
