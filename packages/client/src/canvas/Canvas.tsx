@@ -73,7 +73,6 @@ export function Canvas({ tree, edges, onOpen, workspace }: {
       const filtered = prev.filter(item => item.id !== `content-${id}`)
       const offset = filtered.filter(item => item.type === 'content').length
       // 初始位置：视口右侧空白（避开左侧节点树），多个内容节点依次偏移
-      const screen = flowRef.current?.screenToFlowPosition({ x: window.innerWidth - 620, y: window.innerHeight / 2 }) ?? { x: 200, y: 80 }
       const withContent = [...filtered, {
         id: `content-${id}`,
         type: 'content',
@@ -85,14 +84,18 @@ export function Canvas({ tree, edges, onOpen, workspace }: {
         style: { width: 520, height: 420 },
       }]
       // 新增内容节点后推挤所有重叠（含节点）
-      return resolveCollisions(withContent, { maxIterations: 50, overlapThreshold: 0.5, margin: 8 })
+      return withContent
     })
   }, [setNodes])
 
+  const layoutResult = useMemo(() => (tree === null ? null : radialLayout(tree, expanded)), [tree, expanded])
+  const parents = layoutResult?.parents ?? new Map<string, string>()
+  const radii = layoutResult?.radii ?? new Map<string, number>()
+  const descendants = layoutResult?.descendants ?? new Map<string, string[]>()
+
   const { computedNodes, flowEdges } = useMemo(() => {
-    if (tree === null) return { computedNodes: [] as Node[], flowEdges: [] as Edge[] }
+    if (tree === null || layoutResult === null) return { computedNodes: [] as Node[], flowEdges: [] as Edge[] }
     const visible = visibleNodes(tree, expanded)
-    const layoutResult = radialLayout(tree, expanded)
     const positions = layoutResult.positions
     const built: Node[] = visible.map(node => ({
       id: node.id,
@@ -106,10 +109,6 @@ export function Canvas({ tree, edges, onOpen, workspace }: {
       .map(edge => ({ id: `${edge.from}->${edge.to}`, source: edge.from, target: edge.to, type: 'routed', style: { stroke: '#94a3b8', strokeWidth: 1.5 } }))
     return { computedNodes: built, flowEdges }
   }, [tree, edges, expanded, toggle])
-
-  const parents = useMemo(() => (tree === null ? new Map<string, string>() : radialLayout(tree, expanded).parents), [tree, expanded])
-  const radii = useMemo(() => (tree === null ? new Map<string, number>() : radialLayout(tree, expanded).radii), [tree, expanded])
-  const descendants = useMemo(() => (tree === null ? new Map<string, string[]>() : radialLayout(tree, expanded).descendants), [tree, expanded])
 
   // 展开/折叠/切树时合并布局：新节点用布局位置，已有节点保留用户拖动的位置
   useEffect(() => {
