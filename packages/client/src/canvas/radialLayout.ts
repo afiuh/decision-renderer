@@ -1,39 +1,44 @@
-/** 圆形扩散布局（参考词块树：每个节点展开后子节点围绕它全圆分布，半径按占位延长）。 */
+/** 圆形扩散布局（返回位置 + 父子关系 + 半径，供"沿圆周旋转"用）。 */
 import type { TreeNode } from '../../../shared/types'
 
-/** 子树占位（节点数；折叠的节点算 1）。 */
+export interface LayoutResult {
+  positions: Map<string, { x: number; y: number }>
+  parents: Map<string, string>
+  radii: Map<string, number>
+}
+
 function occupancy(node: TreeNode, expanded: ReadonlySet<string>): number {
   if (!expanded.has(node.id)) return 1
   return 1 + node.children.reduce((sum, child) => sum + occupancy(child, expanded), 0)
 }
 
-export function radialLayout(tree: TreeNode, expanded: ReadonlySet<string>): Map<string, { x: number; y: number }> {
+export function radialLayout(tree: TreeNode, expanded: ReadonlySet<string>): LayoutResult {
   const positions = new Map<string, { x: number; y: number }>()
+  const parents = new Map<string, string>()
+  const radii = new Map<string, number>()
 
-  const place = (node: TreeNode, cx: number, cy: number): void => {
+  const place = (node: TreeNode, cx: number, cy: number, parentId: string | null): void => {
     positions.set(node.id, { x: cx, y: cy })
+    if (parentId !== null) parents.set(node.id, parentId)
     if (!expanded.has(node.id)) return
     const children = node.children
     if (children.length === 0) return
 
-    // 半径 = 占位 × 间距 / 2π（周长 = 占位总和）→ 子树大，半径线自然延长
     const totalOcc = children.reduce((sum, child) => sum + occupancy(child, expanded), 0)
     const r = Math.max(140, (totalOcc * 200) / (2 * Math.PI))
-
-    // 子节点全圆分布（角度按占位比例）
     let angle = -Math.PI / 2
     for (const child of children) {
       const span = (2 * Math.PI) * occupancy(child, expanded) / totalOcc
       const theta = angle + span / 2
       angle += span
-      place(child, cx + r * Math.cos(theta), cy + r * Math.sin(theta))
+      radii.set(child.id, r)
+      place(child, cx + r * Math.cos(theta), cy + r * Math.sin(theta), node.id)
     }
   }
 
-  // 根（有子节点的）在中心；多个根时围绕中心
   const roots = tree.children.filter(root => root.children.length > 0)
   if (roots.length === 1) {
-    place(roots[0], 0, 0)
+    place(roots[0], 0, 0, null)
   } else if (roots.length > 1) {
     const totalOcc = roots.reduce((sum, root) => sum + occupancy(root, expanded), 0)
     const R = Math.max(240, (totalOcc * 90) / (2 * Math.PI))
@@ -42,8 +47,8 @@ export function radialLayout(tree: TreeNode, expanded: ReadonlySet<string>): Map
       const span = (2 * Math.PI) * occupancy(root, expanded) / totalOcc
       const theta = angle + span / 2
       angle += span
-      place(root, R * Math.cos(theta), R * Math.sin(theta))
+      place(root, R * Math.cos(theta), R * Math.sin(theta), null)
     }
   }
-  return positions
+  return { positions, parents, radii }
 }

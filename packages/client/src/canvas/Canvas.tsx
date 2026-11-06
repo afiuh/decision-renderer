@@ -91,7 +91,8 @@ export function Canvas({ tree, edges, onOpen, workspace }: {
   const { computedNodes, flowEdges } = useMemo(() => {
     if (tree === null) return { computedNodes: [] as Node[], flowEdges: [] as Edge[] }
     const visible = visibleNodes(tree, expanded)
-    const positions = radialLayout(tree, expanded)
+    const layoutResult = radialLayout(tree, expanded)
+    const positions = layoutResult.positions
     const built: Node[] = visible.map(node => ({
       id: node.id,
       type: 'card',
@@ -104,6 +105,9 @@ export function Canvas({ tree, edges, onOpen, workspace }: {
       .map(edge => ({ id: `${edge.from}->${edge.to}`, source: edge.from, target: edge.to, type: 'routed', style: { stroke: '#94a3b8', strokeWidth: 1.5 } }))
     return { computedNodes: built, flowEdges }
   }, [tree, edges, expanded, toggle])
+
+  const parents = useMemo(() => (tree === null ? new Map<string, string>() : radialLayout(tree, expanded).parents), [tree, expanded])
+  const radii = useMemo(() => (tree === null ? new Map<string, number>() : radialLayout(tree, expanded).radii), [tree, expanded])
 
   // 展开/折叠/切树时合并布局：新节点用布局位置，已有节点保留用户拖动的位置
   useEffect(() => {
@@ -142,13 +146,17 @@ export function Canvas({ tree, edges, onOpen, workspace }: {
 
   // 拖拽中：实时推挤（只推重叠的，O(n)）
   const onNodeDrag = useCallback((_: unknown, moved: Node) => {
+    const parentId = parents.get(moved.id)
+    const radius = radii.get(moved.id)
+    if (parentId === undefined || radius === undefined) return
     setNodes(current => {
-      const others = current.filter(item => item.id !== moved.id)
-      const pushed = pushAway(moved, others)
-      const byId = new Map(pushed.map(item => [item.id, item]))
-      return current.map(item => item.id === moved.id ? moved : (byId.get(item.id) ?? item))
+      const parent = current.find(item => item.id === parentId)
+      if (parent === undefined) return current
+      const angle = Math.atan2(moved.position.y - parent.position.y, moved.position.x - parent.position.x)
+      const position = { x: parent.position.x + radius * Math.cos(angle), y: parent.position.y + radius * Math.sin(angle) }
+      return current.map(item => item.id === moved.id ? { ...item, position } : item)
     })
-  }, [setNodes])
+  }, [parents, radii, setNodes])
 
   // 拖拽结束：官方 resolveCollisions（多轮迭代，沿小轴推开）
   // 右键：重命名 / 删除
