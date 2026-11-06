@@ -57,6 +57,9 @@ body {
 .canvas.grabbing .react-flow__pane:active { cursor: grabbing; }
 .canvas.grabbing .react-flow__node { pointer-events: none; }
 
+.canvas.scrubbing .react-flow__pane { cursor: ew-resize; }
+.canvas.scrubbing .react-flow__node { pointer-events: none; }
+
 .react-flow__node-card { width: auto; }
 
 .card {

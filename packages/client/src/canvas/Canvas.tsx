@@ -29,12 +29,18 @@ function isTyping(target: EventTarget | null) {
   return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
 }
 
+const MIN_ZOOM = 0.05;
+const MAX_ZOOM = 8;
+const SCRUB_SPEED = 400;
+
 export function Canvas({ nodes, edges, signature, workspace, contentId }: Props) {
   const actions = useContext(CanvasContext)!;
   useFitView(signature);
-  const { setCenter, fitView, zoomTo } = useReactFlow();
+  const { setCenter, fitView, zoomTo, getViewport } = useReactFlow();
   const lastContent = useRef<string | null>(null);
   const [space, setSpace] = useState(false);
+  const [scrub, setScrub] = useState(false);
+  const scrubStart = useRef<{ x: number; zoom: number } | null>(null);
 
   useEffect(() => {
     if (!contentId) {
@@ -57,7 +63,8 @@ export function Canvas({ nodes, edges, signature, workspace, contentId }: Props)
       if (isTyping(e.target)) return;
       if (e.code === "Space") {
         e.preventDefault();
-        setSpace(true);
+        if (e.ctrlKey || e.metaKey) setScrub(true);
+        else setSpace(true);
       }
       if ((e.ctrlKey || e.metaKey) && e.key === "0") {
         e.preventDefault();
@@ -69,9 +76,17 @@ export function Canvas({ nodes, edges, signature, workspace, contentId }: Props)
       }
     };
     const up = (e: KeyboardEvent) => {
-      if (e.code === "Space") setSpace(false);
+      if (e.code === "Space" || e.key === "Control" || e.key === "Meta") {
+        setSpace(false);
+        setScrub(false);
+        scrubStart.current = null;
+      }
     };
-    const blur = () => setSpace(false);
+    const blur = () => {
+      setSpace(false);
+      setScrub(false);
+      scrubStart.current = null;
+    };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
     window.addEventListener("blur", blur);
@@ -81,6 +96,22 @@ export function Canvas({ nodes, edges, signature, workspace, contentId }: Props)
       window.removeEventListener("blur", blur);
     };
   }, [fitView, zoomTo]);
+
+  // Ctrl/Cmd + Space 按住：左右移动鼠标缩放（以视口中心为锚点）
+  useEffect(() => {
+    if (!scrub) return;
+    const move = (e: MouseEvent) => {
+      if (!scrubStart.current) {
+        scrubStart.current = { x: e.clientX, zoom: getViewport().zoom };
+        return;
+      }
+      const dx = e.clientX - scrubStart.current.x;
+      const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, scrubStart.current.zoom * Math.exp(dx / SCRUB_SPEED)));
+      zoomTo(next, { duration: 0 });
+    };
+    window.addEventListener("mousemove", move);
+    return () => window.removeEventListener("mousemove", move);
+  }, [scrub, getViewport, zoomTo]);
 
   const decorated = useMemo(
     () => nodes.map((n) => (n.type === "content" ? { ...n, data: { ...n.data, workspace } } : n)),
@@ -94,8 +125,10 @@ export function Canvas({ nodes, edges, signature, workspace, contentId }: Props)
     [actions],
   );
 
+  const className = `canvas${scrub ? " scrubbing" : space ? " grabbing" : ""}`;
+
   return (
-    <div className={`canvas${space ? " grabbing" : ""}`}>
+    <div className={className}>
       <ReactFlow
         nodes={decorated}
         edges={edges}
@@ -106,16 +139,15 @@ export function Canvas({ nodes, edges, signature, workspace, contentId }: Props)
         nodesConnectable={false}
         elementsSelectable
         proOptions={{ hideAttribution: true }}
-        minZoom={0.05}
-        maxZoom={8}
+        minZoom={MIN_ZOOM}
+        maxZoom={MAX_ZOOM}
         fitView
-        panOnDrag={space ? true : [1, 2]}
+        panOnDrag={scrub ? false : space ? true : [1, 2]}
         panOnScroll
         panOnScrollSpeed={0.8}
         zoomOnScroll={false}
         zoomOnPinch
         zoomOnDoubleClick={false}
-        zoomActivationKeyCode="Alt"
         selectionOnDrag={false}
       >
         <Background gap={24} size={1} color="#e8edf3" />
