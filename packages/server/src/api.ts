@@ -2,21 +2,90 @@ import type { FastifyInstance } from "fastify";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { parseTree } from "./parse.ts";
+import { addProject, browse, createProject, getSession, listProjects, makeDir, removeProject, setSession } from "./projects.ts";
 import { createNode, deleteNode, readNode, renameNode, writeNode } from "./write.ts";
 import { findWorkspace, loadWorkspaces } from "./workspaces.ts";
 
-export async function registerApi(app: FastifyInstance, projectRoot: string) {
-  const workspaces = await loadWorkspaces(projectRoot);
+export async function registerApi(app: FastifyInstance, projectRoot: string, onChange?: () => void) {
+  const wsOf = async (key?: string) => findWorkspace(await loadWorkspaces(projectRoot), key);
 
-  const wsOf = (name?: string) => findWorkspace(workspaces, name);
+  app.get("/api/projects", async () => listProjects());
 
-  app.get("/api/workspaces", async () => workspaces.map((w) => ({ name: w.name })));
+  app.post("/api/projects", async (req, reply) => {
+    try {
+      const { path: dir } = req.body as { path: string };
+      const rec = await addProject(dir);
+      onChange?.();
+      return rec;
+    } catch (err) {
+      reply.code(400);
+      return { error: message(err) };
+    }
+  });
+
+  app.delete("/api/projects", async (req, reply) => {
+    try {
+      const { path: dir } = req.query as { path: string };
+      await removeProject(dir);
+      onChange?.();
+      return { ok: true };
+    } catch (err) {
+      reply.code(400);
+      return { error: message(err) };
+    }
+  });
+
+  app.post("/api/projects/create", async (req, reply) => {
+    try {
+      const { parent, name } = req.body as { parent: string; name: string };
+      const dir = await createProject(parent, name);
+      onChange?.();
+      return { ok: true, path: dir };
+    } catch (err) {
+      reply.code(400);
+      return { error: message(err) };
+    }
+  });
+
+  app.get("/api/session", async () => getSession());
+
+  app.put("/api/session", async (req, reply) => {
+    try {
+      await setSession(req.body as { open: string[]; active: number });
+      return { ok: true };
+    } catch (err) {
+      reply.code(400);
+      return { error: message(err) };
+    }
+  });
+
+  app.get("/api/fs", async (req, reply) => {
+    try {
+      const { path: dir } = req.query as { path?: string };
+      return await browse(dir);
+    } catch (err) {
+      reply.code(400);
+      return { error: message(err) };
+    }
+  });
+
+  app.post("/api/fs/mkdir", async (req, reply) => {
+    try {
+      const { parent, name } = req.body as { parent: string; name: string };
+      return { path: await makeDir(parent, name) };
+    } catch (err) {
+      reply.code(400);
+      return { error: message(err) };
+    }
+  });
+
+  app.get("/api/workspaces", async () => (await loadWorkspaces(projectRoot)).map((w) => ({ name: w.name, root: w.root })));
 
   app.get("/api/tree", async (req, reply) => {
     try {
       const { ws } = req.query as { ws?: string };
-      const w = wsOf(ws);
-      return { workspace: w.name, tree: await parseTree(w.root) };
+      const w = await wsOf(ws);
+      return { workspace: w.root, tree: await parseTree(w.root) };
     } catch (err) {
       reply.code(400);
       return { error: message(err) };
@@ -27,7 +96,7 @@ export async function registerApi(app: FastifyInstance, projectRoot: string) {
     try {
       const id = String((req.params as Record<string, string>)["*"]);
       const { ws } = req.query as { ws?: string };
-      return await readNode(wsOf(ws).root, id);
+      return await readNode((await wsOf(ws)).root, id);
     } catch (err) {
       reply.code(404);
       return { error: message(err) };
@@ -38,7 +107,7 @@ export async function registerApi(app: FastifyInstance, projectRoot: string) {
     try {
       const id = String((req.params as Record<string, string>)["*"]);
       const { markdown, ws } = req.body as { markdown: string; ws?: string };
-      await writeNode(wsOf(ws).root, id, markdown);
+      await writeNode((await wsOf(ws)).root, id, markdown);
       return { ok: true };
     } catch (err) {
       reply.code(400);
@@ -49,7 +118,7 @@ export async function registerApi(app: FastifyInstance, projectRoot: string) {
   app.post("/api/node", async (req, reply) => {
     try {
       const { parent, title, ws } = req.body as { parent: string; title: string; ws?: string };
-      const id = await createNode(wsOf(ws).root, parent, title);
+      const id = await createNode((await wsOf(ws)).root, parent, title);
       return { ok: true, id };
     } catch (err) {
       reply.code(400);
@@ -61,7 +130,7 @@ export async function registerApi(app: FastifyInstance, projectRoot: string) {
     try {
       const id = String((req.params as Record<string, string>)["*"]);
       const { name, ws } = req.body as { name: string; ws?: string };
-      const nextId = await renameNode(wsOf(ws).root, id, name);
+      const nextId = await renameNode((await wsOf(ws)).root, id, name);
       return { ok: true, id: nextId };
     } catch (err) {
       reply.code(400);
@@ -73,7 +142,7 @@ export async function registerApi(app: FastifyInstance, projectRoot: string) {
     try {
       const id = String((req.params as Record<string, string>)["*"]);
       const { ws } = req.query as { ws?: string };
-      await deleteNode(wsOf(ws).root, id);
+      await deleteNode((await wsOf(ws)).root, id);
       return { ok: true };
     } catch (err) {
       reply.code(400);
@@ -85,7 +154,7 @@ export async function registerApi(app: FastifyInstance, projectRoot: string) {
     try {
       const { q, ws } = req.query as { q?: string; ws?: string };
       if (!q || !q.trim()) return { hits: [] };
-      const w = wsOf(ws);
+      const w = await wsOf(ws);
       return { hits: await search(w.root, q.trim()) };
     } catch (err) {
       reply.code(400);
