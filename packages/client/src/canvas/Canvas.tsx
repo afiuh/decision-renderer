@@ -249,10 +249,15 @@ function CanvasInner({ project, tree, onSelect, handleRef }: Props) {
     handleRef.current = { createChild, openNode };
   }
 
+  const decorated = useMemo(
+    () => nodes.map((n) => (n.type === "content" ? { ...n, data: { ...n.data, workspace: project } } : n)),
+    [nodes, project],
+  );
+
   return (
     <CanvasContext.Provider value={actions}>
       <CanvasView
-        nodes={nodes}
+        nodes={decorated}
         edges={edges}
         expanded={expanded}
         tree={tree}
