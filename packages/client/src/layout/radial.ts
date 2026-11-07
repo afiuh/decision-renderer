@@ -67,8 +67,8 @@ export function radialLayout({ roots, expanded, sizes, dragged }: LayoutInput): 
   const isOpen = (n: TreeNode) => expanded.has(n.id) && n.children.length > 0;
 
   /**
-   * 碰撞圆（以本节点中心为圆心）：只包**直接子节点的框**，不递归子树。
-   * 子节点 A/B 同时展开时，各自相对本节点算，不叠加。
+   * 碰撞圆（以本节点中心为圆心）：包住**整个子树**（含展开的后代）。
+   * 子节点 A/B 同时展开时：各自算自己的子树圆，父取 max（不相加）。
    * 半径取所有子框里**最远的那个点**（有的框长、有的框短，取最长）。
    */
   function measureCircle(node: TreeNode): number {
@@ -77,18 +77,18 @@ export function radialLayout({ roots, expanded, sizes, dragged }: LayoutInput): 
       circles.set(node.id, self);
       return self;
     }
-    const kids = node.children.map((c) => ({ node: c, h: halfOf(c.id) }));
-    // 半径自适应：让所有子框的角度区间总和 ≤ 2π
+    const kids = node.children.map((c) => ({ node: c, r: measureCircle(c) }));
+    // 半径自适应：让所有子节点的角度区间总和 ≤ 2π
     let r0 = self + GAP;
     for (let iter = 0; iter < 32; iter++) {
-      const total = kids.reduce((s, k) => s + arcAt(Math.max(r0, self + k.h + GAP), k.h), 0);
+      const total = kids.reduce((s, k) => s + arcAt(Math.max(r0, k.r + self + GAP), k.r), 0);
       if (total <= Math.PI * 2) break;
       r0 *= total / (Math.PI * 2);
     }
     let outer = self;
     for (const k of kids) {
-      const d = Math.max(r0, self + k.h + GAP);
-      outer = Math.max(outer, d + k.h);
+      const d = Math.max(r0, k.r + self + GAP);
+      outer = Math.max(outer, d + k.r);
     }
     circles.set(node.id, outer);
     return outer;
@@ -97,24 +97,22 @@ export function radialLayout({ roots, expanded, sizes, dragged }: LayoutInput): 
   function placeChildren(parent: TreeNode, center: { x: number; y: number }) {
     if (!isOpen(parent)) return;
     const self = halfOf(parent.id);
-    // 给每个子节点算自己的碰撞圆（只包它的直接子框，不递归）
-    for (const c of parent.children) measureCircle(c);
     const kids = parent.children
-      .map((node) => ({ node, h: halfOf(node.id) }))
-      .sort((a, b) => b.h - a.h);
+      .map((node) => ({ node, r: circles.get(node.id) ?? measureCircle(node) }))
+      .sort((a, b) => b.r - a.r);
 
-    // 自适应半径（只按子框，不叠加子树）
+    // 自适应半径（按子节点的子树圆）
     let r0 = self + GAP;
     for (let iter = 0; iter < 32; iter++) {
-      const total = kids.reduce((s, k) => s + arcAt(Math.max(r0, self + k.h + GAP), k.h), 0);
+      const total = kids.reduce((s, k) => s + arcAt(Math.max(r0, k.r + self + GAP), k.r), 0);
       if (total <= Math.PI * 2) break;
       r0 *= total / (Math.PI * 2);
     }
 
     // 每个子节点的角度区间
     const spans = kids.map((k) => {
-      const d = Math.max(r0, self + k.h + GAP);
-      return { ...k, d, span: arcAt(d, k.h) };
+      const d = Math.max(r0, k.r + self + GAP);
+      return { ...k, d, span: arcAt(d, k.r) };
     });
     const totalSpan = spans.reduce((s, k) => s + k.span, 0);
     const pad = Math.max(0, Math.PI * 2 - totalSpan) / Math.max(1, spans.length);
