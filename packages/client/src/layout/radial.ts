@@ -98,20 +98,24 @@ export function radialLayout({ roots, expanded, sizes, dragged }: LayoutInput): 
     if (!isOpen(parent)) return;
     const self = halfOf(parent.id);
     const kids = parent.children
-      .map((node) => ({ node, r: circles.get(node.id) ?? measureCircle(node) }))
+      .map((node) => ({ node, r: circles.get(node.id) ?? measureCircle(node), open: isOpen(node) }))
       .sort((a, b) => b.r - a.r);
 
-    // 自适应半径（按子节点的子树圆）
+    // 基础半径 r0：所有子节点共用（连线等长）
+    // 展开的子节点在此基础上延长（r0 不够放它的子树时）
+    const distOf = (k: { r: number; open: boolean }, base: number) =>
+      k.open ? Math.max(base, k.r + self + GAP) : base;
+
     let r0 = self + GAP;
     for (let iter = 0; iter < 32; iter++) {
-      const total = kids.reduce((s, k) => s + arcAt(Math.max(r0, k.r + self + GAP), k.r), 0);
+      const total = kids.reduce((s, k) => s + arcAt(distOf(k, r0), k.r), 0);
       if (total <= Math.PI * 2) break;
       r0 *= total / (Math.PI * 2);
     }
 
-    // 每个子节点的角度区间
+    // 每个子节点：未展开 = r0（等长）；展开 = 延长
     const spans = kids.map((k) => {
-      const d = Math.max(r0, k.r + self + GAP);
+      const d = distOf(k, r0);
       return { ...k, d, span: arcAt(d, k.r) };
     });
     const totalSpan = spans.reduce((s, k) => s + k.span, 0);
