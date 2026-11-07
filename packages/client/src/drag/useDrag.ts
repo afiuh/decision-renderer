@@ -100,11 +100,28 @@ export function useDrag({ layout, sizes, setDragged, contentPos, setContentPos }
       const selfR = layout.radii.get(s.id) ?? 100;
       const selfSize = sizes.get(s.id) ?? { width: 120, height: 36 };
       const selfSpan = spanAt(selfR, Math.hypot(selfSize.width, selfSize.height) / 2);
-      const angle = resolveAngle(want, s.id, siblings, selfSpan);
+
+      // 拖拽时：自己被拖到鼠标角度；其他兄弟按原角度顺序**让位**（顺时针排开），
+      // 保证每个兄弟的区间 [angle-span/2, angle+span/2] 不重叠。
+      const norm = (a: number) => {
+        let x = a % (Math.PI * 2);
+        if (x < 0) x += Math.PI * 2;
+        return x;
+      };
+      const others = siblings
+        .filter((x) => x.id !== s.id)
+        .sort((a, b) => norm(a.angle - want) - norm(b.angle - want));
 
       latest.current.setDragged((prev) => {
         const next = new Map(prev);
-        next.set(s.id, angle);
+        next.set(s.id, want);
+        // 从被拖节点的顺时针一侧开始，依次排开
+        let acc = want + selfSpan / 2;
+        for (const o of others) {
+          acc += o.span / 2;
+          next.set(o.id, acc);
+          acc += o.span / 2;
+        }
         return next;
       });
     },
