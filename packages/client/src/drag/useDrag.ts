@@ -101,27 +101,50 @@ export function useDrag({ layout, sizes, setDragged, contentPos, setContentPos }
       const selfSize = sizes.get(s.id) ?? { width: 120, height: 36 };
       const selfSpan = spanAt(selfR, Math.hypot(selfSize.width, selfSize.height) / 2);
 
-      // 拖拽时：自己被拖到鼠标角度；其他兄弟按原角度顺序**让位**（顺时针排开），
-      // 保证每个兄弟的区间 [angle-span/2, angle+span/2] 不重叠。
+      // 物理碰撞：被拖节点自由跟随鼠标；只有和它重叠的兄弟才被弹开（连锁）。
+      // 有空隙时不推，绝不整体重排。
       const norm = (a: number) => {
         let x = a % (Math.PI * 2);
         if (x < 0) x += Math.PI * 2;
         return x;
       };
-      const others = siblings
-        .filter((x) => x.id !== s.id)
-        .sort((a, b) => norm(a.angle - want) - norm(b.angle - want));
+      // 环形区间 [a-span/2, a+span/2] 是否重叠
+      const overlap = (a1: number, s1: number, a2: number, s2: number) => {
+        const diff = Math.abs(((norm(a1 - a2) + Math.PI) % (Math.PI * 2)) - Math.PI);
+        return diff < (s1 + s2) / 2;
+      };
+
+      const angles = new Map<string, number>();
+      const spans = new Map<string, number>();
+      for (const x of siblings) {
+        angles.set(x.id, x.id === s.id ? want : x.angle);
+        spans.set(x.id, x.id === s.id ? selfSpan : x.span);
+      }
+
+      // 连锁弹开：被拖节点不动，其余节点两两重叠时往远离侧推
+      for (let iter = 0; iter < 32; iter++) {
+        let moved = false;
+        for (const a of siblings) {
+          if (a.id === s.id) continue;
+          for (const b of siblings) {
+            if (b.id === a.id) continue;
+            const da = angles.get(a.id)!;
+            const db = angles.get(b.id)!;
+            const sa = spans.get(a.id)!;
+            const sb = spans.get(b.id)!;
+            if (!overlap(da, sa, db, sb)) continue;
+            // 按原始角度关系决定往哪边推（保持原来的顺时针顺序）
+            const dir = norm(a.angle - b.angle) < Math.PI ? 1 : -1;
+            angles.set(a.id, db + dir * ((sa + sb) / 2 + 0.01));
+            moved = true;
+          }
+        }
+        if (!moved) break;
+      }
 
       latest.current.setDragged((prev) => {
         const next = new Map(prev);
-        next.set(s.id, want);
-        // 从被拖节点的顺时针一侧开始，依次排开
-        let acc = want + selfSpan / 2;
-        for (const o of others) {
-          acc += o.span / 2;
-          next.set(o.id, acc);
-          acc += o.span / 2;
-        }
+        for (const [id, angle] of angles) next.set(id, angle);
         return next;
       });
     },
