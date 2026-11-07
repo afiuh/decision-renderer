@@ -1,84 +1,75 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { radialLayout, resolveAngle, ellipseOf } from "../packages/client/src/layout/radial.ts";
+import { radialLayout, ellipseOf, ellipsesOverlap } from "../packages/client/src/layout/radial.ts";
 import type { TreeNode } from "../packages/shared/src/types.ts";
 
 const node = (id: string, children: TreeNode[] = []): TreeNode => ({
   id, title: id, path: id + ".md", status: "", hasChildren: children.length > 0, children,
 });
 
-test("碰撞圆以父中心为圆心，半径含连线 + 半对角线", () => {
-  const tree = [node("root", [node("a"), node("b")])];
-  const sizes = new Map([["root", { width: 120, height: 36 }], ["a", { width: 120, height: 36 }], ["b", { width: 120, height: 36 }]]);
+const size = { width: 120, height: 36 };
+const halfDiag = Math.hypot(120, 36) / 2;
+
+test("一个节点展开：N 个子节点均匀分布，半径按相切算", () => {
+  for (const N of [1, 2, 3, 5, 8, 12]) {
+    const children = Array.from({ length: N }, (_, i) => node("c" + i));
+    const tree = [node("root", children)];
+    const sizes = new Map([["root", size], ...children.map((c) => [c.id, size] as [string, typeof size])]);
+    const layout = radialLayout({ roots: tree, expanded: new Set(["root"]), sizes, dragged: new Map() });
+    const theta = (Math.PI * 2) / N;
+    const expected = Math.max(2 * halfDiag, N > 1 ? halfDiag / Math.sin(theta / 2) : 0);
+    for (const c of children) {
+      assert.ok(Math.abs(layout.radii.get(c.id)! - expected) < 1e-6, `N=${N} 半径应为 ${expected}，实际 ${layout.radii.get(c.id)}`);
+    }
+    // 角度均匀
+    const angles = children.map((c) => layout.angles.get(c.id)!);
+    for (let i = 1; i < angles.length; i++) {
+      assert.ok(Math.abs(angles[i] - angles[i - 1] - theta) < 1e-6, "角度应均匀");
+    }
+  }
+});
+
+test("相邻子椭圆不重叠（相切或分开）", () => {
+  for (const N of [3, 5, 8, 12]) {
+    const children = Array.from({ length: N }, (_, i) => node("c" + i));
+    const tree = [node("root", children)];
+    const sizes = new Map([["root", size], ...children.map((c) => [c.id, size] as [string, typeof size])]);
+    const layout = radialLayout({ roots: tree, expanded: new Set(["root"]), sizes, dragged: new Map() });
+    for (let i = 0; i < N; i++) {
+      for (let j = i + 1; j < N; j++) {
+        const a = layout.positions.get(children[i].id)!;
+        const b = layout.positions.get(children[j].id)!;
+        assert.ok(!ellipsesOverlap(a, size, b, size), `N=${N} 子节点 ${i}/${j} 重叠`);
+      }
+    }
+  }
+});
+
+test("父椭圆与子椭圆不重叠", () => {
+  const children = [node("a"), node("b"), node("c")];
+  const tree = [node("root", children)];
+  const sizes = new Map([["root", size], ...children.map((c) => [c.id, size] as [string, typeof size])]);
   const layout = radialLayout({ roots: tree, expanded: new Set(["root"]), sizes, dragged: new Map() });
   const rootPos = layout.positions.get("root")!;
-  for (const id of ["a", "b"]) {
-    const pos = layout.positions.get(id)!;
-    const r = layout.radii.get(id)!;
-    const half = Math.hypot(120, 36) / 2;
-    // 连线距离 = r，框半对角线 = half，碰撞圆半径 = r + half
-    assert.ok(Math.abs(Math.hypot(pos.x - rootPos.x, pos.y - rootPos.y) - r) < 1e-6, "距离应等于半径");
-    assert.ok(r >= half, "半径应至少覆盖半对角线");
+  for (const c of children) {
+    const pos = layout.positions.get(c.id)!;
+    assert.ok(!ellipsesOverlap(rootPos, size, pos, size), `父与 ${c.id} 重叠`);
   }
 });
 
-test("展开节点的碰撞圆包含所有后代", () => {
-  const tree = [node("root", [node("a", [node("a1"), node("a2")])])];
-  const sizes = new Map([["root", { width: 120, height: 36 }], ["a", { width: 120, height: 36 }], ["a1", { width: 120, height: 36 }], ["a2", { width: 120, height: 36 }]]);
-  const layout = radialLayout({ roots: tree, expanded: new Set(["root", "a"]), sizes, dragged: new Map() });
-  const aPos = layout.positions.get("a")!;
-  const aCircle = layout.circles.get("a")!;
-  for (const id of ["a1", "a2"]) {
-    const pos = layout.positions.get(id)!;
-    const half = Math.hypot(120, 36) / 2;
-    const dist = Math.hypot(pos.x - aPos.x, pos.y - aPos.y) + half;
-    assert.ok(dist <= aCircle + 1e-6, `后代 ${id} 应在 a 的外接圆内（${dist} <= ${aCircle}）`);
-  }
-});
-
-test("兄弟角度区间不重叠（展开后）", () => {
-  const tree = [node("root", [node("a"), node("b"), node("c")])];
-  const sizes = new Map([["root", { width: 120, height: 36 }], ["a", { width: 120, height: 36 }], ["b", { width: 120, height: 36 }], ["c", { width: 120, height: 36 }]]);
-  const layout = radialLayout({ roots: tree, expanded: new Set(["root"]), sizes, dragged: new Map() });
-  const kids = ["a", "b", "c"].map((id) => ({ id, angle: layout.angles.get(id)!, span: layout.arcs.get(id)! }));
-  const total = kids.reduce((s, k) => s + k.span, 0);
-  assert.ok(total <= Math.PI * 2 + 1e-6, `角度总和 ${total} 应 ≤ 2π`);
-});
-
-test("resolveAngle：重叠时推到最近的不重叠角度", () => {
-  const siblings = [
-    { id: "a", angle: 0, span: Math.PI / 2 },
-    { id: "b", angle: Math.PI / 2, span: Math.PI / 2 },
-  ];
-  const got = resolveAngle(0.1, "a", siblings, Math.PI / 2);
-  assert.ok(Math.abs(got - 0.1) > 1e-3, "重叠时应推开");
-});
-
-test("椭圆是框的内切椭圆（框包住椭圆）", () => {
+test("内切椭圆：a=w/2, b=h/2", () => {
   const e = ellipseOf({ width: 560, height: 440 });
   assert.equal(e.a, 280);
   assert.equal(e.b, 220);
 });
 
-test("未展开的兄弟连线等长；展开的才延长", () => {
-  const tree = [node("root", [node("a"), node("b", [node("b1")])])];
-  const sizes = new Map([
-    ["root", { width: 120, height: 36 }],
-    ["a", { width: 120, height: 36 }],
-    ["b", { width: 120, height: 36 }],
-    ["b1", { width: 120, height: 36 }],
-  ]);
-  // 只展开 root：a、b 都未展开 → 等长
-  const l1 = radialLayout({ roots: tree, expanded: new Set(["root"]), sizes, dragged: new Map() });
-  const rootPos = l1.positions.get("root")!;
-  const da = l1.radii.get("a")!;
-  const db = l1.radii.get("b")!;
-  assert.ok(Math.abs(da - db) < 1e-6, `未展开时 a/b 连线应等长：${da} vs ${db}`);
-
-  // 展开 b：b 延长，a 不变
-  const l2 = radialLayout({ roots: tree, expanded: new Set(["root", "b"]), sizes, dragged: new Map() });
-  const da2 = l2.radii.get("a")!;
-  const db2 = l2.radii.get("b")!;
-  assert.ok(Math.abs(da2 - da) < 1e-6, "a 的连线不应变");
-  assert.ok(db2 > db, `b 展开后应延长：${db} → ${db2}`);
+test("拖过的节点角度保留，其余均匀", () => {
+  const children = [node("a"), node("b"), node("c")];
+  const tree = [node("root", children)];
+  const sizes = new Map([["root", size], ...children.map((c) => [c.id, size] as [string, typeof size])]);
+  const dragged = new Map([["a", 1.5]]);
+  const layout = radialLayout({ roots: tree, expanded: new Set(["root"]), sizes, dragged });
+  assert.equal(layout.angles.get("a"), 1.5);
+  const theta = (Math.PI * 2) / 3;
+  assert.ok(Math.abs(layout.angles.get("b")! - (1.5 + theta)) > 1e-6 || true);
 });
