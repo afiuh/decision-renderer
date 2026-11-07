@@ -19,7 +19,7 @@ export function NodeCard({ id, data }: NodeProps) {
     const el = ref.current;
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => {
-      const box = entry.contentRect;
+      const r = el.getBoundingClientRect(); const box = { width: r.width, height: r.height };
       actions.measure(id, { width: box.width + 2, height: box.height + 2 });
     });
     ro.observe(el);
