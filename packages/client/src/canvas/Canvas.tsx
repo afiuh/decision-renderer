@@ -68,10 +68,11 @@ function CanvasInner({ project, tree, onSelect, handleRef }: Props) {
   const [viewport, setViewport] = useState(saved.viewport ?? null);
 
   const index = useMemo(() => new Map(flatten(tree).map((n) => [n.id, n])), [tree]);
-  const layout = useLayout(tree, expanded, sizes, dragged);
+  const [dragging, setDragging] = useState(false);
+  const layout = useLayout(tree, expanded, sizes, dragged, dragging);
   const nodes = useNodes(layout, index, expanded, sizes, selected, contentIds, contentPos);
   const edges = useEdges(layout, expanded, index, contentIds);
-  const drag = useDrag({ layout, sizes, setDragged, contentPos, setContentPos });
+  const drag = useDrag({ layout, sizes, setDragged, contentPos, setContentPos, setDragging });
 
   // 首次进入且没保存过展开集时，默认展开根节点
   const initialised = useRef(saved.expanded !== undefined);
