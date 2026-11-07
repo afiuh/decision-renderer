@@ -14,7 +14,7 @@ export function useFitView(signature: string, skipFirst = false) {
 
   const fit = useCallback(() => {
     requestAnimationFrame(() => {
-      fitView({ padding: 0.15, maxZoom: 1, duration: 200 });
+      fitView({ padding: 0.15, maxZoom: 1, minZoom: 0.3, duration: 200 });
     });
   }, [fitView]);
 

@@ -39,9 +39,9 @@ export function useNodes(
           position: { x: center.x - size.width / 2, y: center.y - size.height / 2 },
           data: { node, expanded: expanded.has(id), selected: selected === id },
           draggable: false,
-          width: size.width,
-          height: size.height,
-          measured: { width: size.width, height: size.height },
+          width: Math.max(1, size.width),
+          height: Math.max(1, size.height),
+          measured: { width: Math.max(1, size.width), height: Math.max(1, size.height) },
         };
       }
       next.set(key, item);
@@ -62,8 +62,8 @@ export function useNodes(
           position: pos,
           data: { node },
           draggable: false,
-          width: size.width,
-          height: size.height,
+          width: Math.max(1, size.width),
+          height: Math.max(1, size.height),
           zIndex: 20,
         };
       }

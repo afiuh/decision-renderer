@@ -142,6 +142,8 @@ function CanvasInner({ project, tree, onSelect, handleRef }: Props) {
   }, []);
 
   const measure = useCallback((id: string, size: { width: number; height: number }) => {
+    // 忽略 0 尺寸（测量循环：node.width=0 → 容器 0 → 卡片 0 → 测量 0）
+    if (size.width < 1 || size.height < 1) return;
     setSizes((prev) => {
       const old = prev.get(id);
       if (old && Math.abs(old.width - size.width) < 0.5 && Math.abs(old.height - size.height) < 0.5) return prev;

@@ -19,8 +19,12 @@ export function NodeCard({ id, data }: NodeProps) {
     const el = ref.current;
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => {
-      const r = el.getBoundingClientRect(); const box = { width: r.width, height: r.height };
-      actions.measure(id, { width: box.width + 2, height: box.height + 2 });
+      // borderBoxSize 含 padding/border，且不受父容器宽度/zoom 影响
+      const b = entry.borderBoxSize?.[0];
+      const box = b
+        ? { width: b.inlineSize, height: b.blockSize }
+        : { width: el.offsetWidth, height: el.offsetHeight };
+      actions.measure(id, { width: box.width, height: box.height });
     });
     ro.observe(el);
     return () => ro.disconnect();
