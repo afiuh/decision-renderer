@@ -27,6 +27,12 @@ function halfDiagonal(size: { width: number; height: number }) {
   return Math.hypot(size.width, size.height) / 2;
 }
 
+/** 框在距离 r 处实际占的角度区间（切线角，角点贴圆） */
+export function spanAt(r: number, halfDiag: number) {
+  if (r <= halfDiag) return Math.PI;
+  return 2 * Math.atan(halfDiag / Math.sqrt(Math.max(1e-6, r * r - halfDiag * halfDiag)));
+}
+
 /** 内切椭圆：a = w/2，b = h/2（框包住椭圆） */
 export function ellipseOf(size: { width: number; height: number }) {
   return { a: size.width / 2, b: size.height / 2 };
@@ -92,7 +98,7 @@ export function radialLayout({ roots, expanded, sizes, dragged }: LayoutInput): 
       parents.set(child.id, node.id);
       radii.set(child.id, r);
       angles.set(child.id, angle);
-      arcs.set(child.id, theta);
+      arcs.set(child.id, spanAt(r, radiusOf(child.id)));
       place(child, pos);
     });
   }

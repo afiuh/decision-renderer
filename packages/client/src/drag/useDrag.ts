@@ -1,6 +1,6 @@
 import { useCallback, useRef } from "react";
 import { useReactFlow } from "@xyflow/react";
-import { CONTENT_PREFIX, CONTENT_SIZE, ellipsesOverlap, resolveAngle, type LayoutResult } from "../layout/radial.ts";
+import { CONTENT_PREFIX, CONTENT_SIZE, ellipsesOverlap, resolveAngle, spanAt, type LayoutResult } from "../layout/radial.ts";
 
 interface RotateState {
   kind: "rotate";
@@ -97,7 +97,9 @@ export function useDrag({ layout, sizes, setDragged, contentPos, setContentPos }
         if (angle === undefined || span === undefined) continue;
         siblings.push({ id, angle, span });
       }
-      const selfSpan = layout.arcs.get(s.id) ?? Math.PI / 6;
+      const selfR = layout.radii.get(s.id) ?? 100;
+      const selfSize = sizes.get(s.id) ?? { width: 120, height: 36 };
+      const selfSpan = spanAt(selfR, Math.hypot(selfSize.width, selfSize.height) / 2);
       const angle = resolveAngle(want, s.id, siblings, selfSpan);
 
       latest.current.setDragged((prev) => {
