@@ -71,7 +71,7 @@ function CanvasInner({ project, tree, onSelect, handleRef }: Props) {
   const layout = useLayout(tree, expanded, sizes, dragged);
   const nodes = useNodes(layout, index, expanded, sizes, selected, contentIds, contentPos);
   const edges = useEdges(layout, expanded, index, contentIds);
-  const drag = useDrag({ layout, setDragged, contentPos, setContentPos });
+  const drag = useDrag({ layout, sizes, setDragged, contentPos, setContentPos });
 
   // 首次进入且没保存过展开集时，默认展开根节点
   const initialised = useRef(saved.expanded !== undefined);

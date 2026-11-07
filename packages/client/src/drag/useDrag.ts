@@ -19,16 +19,17 @@ type DragState = RotateState | FreeState;
 
 interface Options {
   layout: LayoutResult;
+  sizes: Map<string, { width: number; height: number }>;
   setDragged: (fn: (prev: Map<string, number>) => Map<string, number>) => void;
   contentPos: Map<string, { x: number; y: number }>;
   setContentPos: (fn: (prev: Map<string, { x: number; y: number }>) => Map<string, { x: number; y: number }>) => void;
 }
 
-export function useDrag({ layout, setDragged, contentPos, setContentPos }: Options) {
+export function useDrag({ layout, sizes, setDragged, contentPos, setContentPos }: Options) {
   const { screenToFlowPosition } = useReactFlow();
   const state = useRef<DragState | null>(null);
-  const latest = useRef({ layout, contentPos, setDragged, setContentPos });
-  latest.current = { layout, contentPos, setDragged, setContentPos };
+  const latest = useRef({ layout, sizes, contentPos, setDragged, setContentPos });
+  latest.current = { layout, sizes, contentPos, setDragged, setContentPos };
 
   const onPointerDown = useCallback((event: React.PointerEvent, id: string) => {
     const { layout, contentPos } = latest.current;
@@ -63,15 +64,16 @@ export function useDrag({ layout, setDragged, contentPos, setContentPos }: Optio
       if (s.kind === "free") {
         const dx = p.x - s.pointer.x;
         const dy = p.y - s.pointer.y;
-        const { contentPos } = latest.current;
+        const { contentPos, sizes } = latest.current;
         let next = { x: s.start.x + dx, y: s.start.y + dy };
-        // 内容节点椭圆碰撞：和其他内容节点重叠时沿中心连线推开
-        const mySize = CONTENT_SIZE;
+        // 内容节点椭圆碰撞：用**实际尺寸**（用户调过大小），重叠时沿中心连线推开
+        const mySize = sizes.get(CONTENT_PREFIX + s.id) ?? CONTENT_SIZE;
         for (const [id, pos] of contentPos) {
           if (id === s.id) continue;
-          if (ellipsesOverlap(next, mySize, pos, mySize)) {
+          const otherSize = sizes.get(CONTENT_PREFIX + id) ?? CONTENT_SIZE;
+          if (ellipsesOverlap(next, mySize, pos, otherSize)) {
             const ang = Math.atan2(next.y - pos.y, next.x - pos.x);
-            const need = (mySize.width + mySize.height) / 2;
+            const need = (mySize.width + mySize.height) / 2 + (otherSize.width + otherSize.height) / 2;
             next = { x: pos.x + Math.cos(ang) * need, y: pos.y + Math.sin(ang) * need };
           }
         }
