@@ -1,6 +1,6 @@
 import { useCallback, useRef } from "react";
 import { useReactFlow } from "@xyflow/react";
-import { CONTENT_PREFIX, type LayoutResult } from "../layout/radial.ts";
+import { CONTENT_PREFIX, CONTENT_SIZE, ellipsesOverlap, resolveAngle, type LayoutResult } from "../layout/radial.ts";
 
 interface RotateState {
   kind: "rotate";
@@ -63,15 +63,41 @@ export function useDrag({ layout, setDragged, contentPos, setContentPos }: Optio
       if (s.kind === "free") {
         const dx = p.x - s.pointer.x;
         const dy = p.y - s.pointer.y;
+        const { contentPos } = latest.current;
+        let next = { x: s.start.x + dx, y: s.start.y + dy };
+        // 内容节点椭圆碰撞：和其他内容节点重叠时沿中心连线推开
+        const mySize = CONTENT_SIZE;
+        for (const [id, pos] of contentPos) {
+          if (id === s.id) continue;
+          if (ellipsesOverlap(next, mySize, pos, mySize)) {
+            const ang = Math.atan2(next.y - pos.y, next.x - pos.x);
+            const need = (mySize.width + mySize.height) / 2;
+            next = { x: pos.x + Math.cos(ang) * need, y: pos.y + Math.sin(ang) * need };
+          }
+        }
         latest.current.setContentPos((prev) => {
-          const next = new Map(prev);
-          next.set(s.id, { x: s.start.x + dx, y: s.start.y + dy });
-          return next;
+          const map = new Map(prev);
+          map.set(s.id, next);
+          return map;
         });
         return;
       }
 
-      const angle = Math.atan2(p.y - s.center.y, p.x - s.center.x);
+      const { layout } = latest.current;
+      const want = Math.atan2(p.y - s.center.y, p.x - s.center.x);
+      // 同父的所有兄弟（含自己）的角度区间
+      const parentId = layout.parents.get(s.id);
+      const siblings: { id: string; angle: number; span: number }[] = [];
+      for (const [id, pid] of layout.parents) {
+        if (pid !== parentId) continue;
+        const angle = id === s.id ? want : layout.angles.get(id);
+        const span = layout.arcs.get(id);
+        if (angle === undefined || span === undefined) continue;
+        siblings.push({ id, angle, span });
+      }
+      const selfSpan = layout.arcs.get(s.id) ?? Math.PI / 6;
+      const angle = resolveAngle(want, s.id, siblings, selfSpan);
+
       latest.current.setDragged((prev) => {
         const next = new Map(prev);
         next.set(s.id, angle);
