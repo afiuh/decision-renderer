@@ -82,7 +82,7 @@ export async function createProject(parent: string, name: string) {
   const abs = path.resolve(parent, name);
   if (await exists(abs)) throw new Error("目标已存在");
   await mkdir(abs, { recursive: true });
-  const body = `# ${name}\n\n**父级**：无\n\n## 要做什么\n\n## 为什么要做\n\n## 怎么做\n\n## 如何验证自己做对了\n`;
+  const body = `# ${name}\n\n**父级**：无\n\n## 为什么要做\n\n## 要做什么\n\n## 怎么做\n\n## 如何验证自己做对了\n`;
   await writeFile(path.join(abs, name + ".md"), body, "utf8");
   await addProject(abs, name);
   return abs;
