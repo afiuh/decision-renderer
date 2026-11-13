@@ -20,17 +20,18 @@ type DragState = RotateState | FreeState;
 interface Options {
   layout: LayoutResult;
   sizes: Map<string, { width: number; height: number }>;
+  contentSizes: Map<string, { width: number; height: number }>;
   setDragged: (fn: (prev: Map<string, number>) => Map<string, number>) => void;
   contentPos: Map<string, { x: number; y: number }>;
   setContentPos: (fn: (prev: Map<string, { x: number; y: number }>) => Map<string, { x: number; y: number }>) => void;
   setDragging?: (v: boolean) => void;
 }
 
-export function useDrag({ layout, sizes, setDragged, contentPos, setContentPos, setDragging }: Options) {
+export function useDrag({ layout, sizes, contentSizes, setDragged, contentPos, setContentPos, setDragging }: Options) {
   const { screenToFlowPosition } = useReactFlow();
   const state = useRef<DragState | null>(null);
-  const latest = useRef({ layout, sizes, contentPos, setDragged, setContentPos, setDragging });
-  latest.current = { layout, sizes, contentPos, setDragged, setContentPos, setDragging };
+  const latest = useRef({ layout, sizes, contentSizes, contentPos, setDragged, setContentPos, setDragging });
+  latest.current = { layout, sizes, contentSizes, contentPos, setDragged, setContentPos, setDragging };
 
   const onPointerDown = useCallback((event: React.PointerEvent, id: string) => {
     const { layout, contentPos } = latest.current;
@@ -69,15 +70,15 @@ export function useDrag({ layout, sizes, setDragged, contentPos, setContentPos, 
       if (s.kind === "free") {
         const dx = p.x - s.pointer.x;
         const dy = p.y - s.pointer.y;
-        const { contentPos, sizes, layout } = latest.current;
+        const { contentPos, contentSizes, sizes, layout } = latest.current;
         let next = { x: s.start.x + dx, y: s.start.y + dy };
-        const mySize = sizes.get(CONTENT_PREFIX + s.id) ?? CONTENT_SIZE;
+        const mySize = contentSizes.get(CONTENT_PREFIX + s.id) ?? CONTENT_SIZE;
 
         // 障碍物 = 其它内容节点（左上角坐标）+ 所有决策节点（中心 → 左上角）
         const obstacles: Rect[] = [];
         for (const [id, pos] of contentPos) {
           if (id === s.id) continue;
-          const sz = sizes.get(CONTENT_PREFIX + id) ?? CONTENT_SIZE;
+          const sz = contentSizes.get(CONTENT_PREFIX + id) ?? CONTENT_SIZE;
           obstacles.push({ x: pos.x, y: pos.y, width: sz.width, height: sz.height });
         }
         for (const [id, c] of layout.positions) {
@@ -207,7 +208,7 @@ export function useDrag({ layout, sizes, setDragged, contentPos, setContentPos, 
         for (let iter = 0; iter < 8; iter++) {
           let moved = false;
           for (const [id, pos] of nextContent) {
-            const sz = sizes.get(CONTENT_PREFIX + id) ?? CONTENT_SIZE;
+            const sz = latest.current.contentSizes.get(CONTENT_PREFIX + id) ?? CONTENT_SIZE;
             const d = pushOutRect(
               { x: pos.x, y: pos.y, width: sz.width, height: sz.height },
               rectAt(selfPos, selfSize),

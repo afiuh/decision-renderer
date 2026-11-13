@@ -12,6 +12,8 @@ export interface CanvasActions {
   open: (id: string) => void;
   close: (id: string) => void;
   measure: (id: string, size: { width: number; height: number }) => void;
+  /** 内容窗口的独立尺寸（不参与布局，只用于浮层缩放）。 */
+  measureContent: (id: string, size: { width: number; height: number }) => void;
   rename: (id: string, title: string) => void;
   remove: (id: string) => void;
 }

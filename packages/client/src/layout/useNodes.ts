@@ -16,6 +16,7 @@ export function useNodes(
   index: Map<string, TreeNode>,
   expanded: Set<string>,
   sizes: Map<string, { width: number; height: number }>,
+  contentSizes: Map<string, { width: number; height: number }>,
   selected: string | null,
   contentIds: Set<string>,
   contentPos: Map<string, { x: number; y: number }>,
@@ -52,8 +53,9 @@ export function useNodes(
       const node = index.get(id);
       const pos = contentPos.get(id);
       if (!node || !pos) continue;
-      const size = sizes.get(CONTENT_PREFIX + id) ?? CONTENT_SIZE;
-      const key = [CONTENT_PREFIX + id, pos.x.toFixed(1), pos.y.toFixed(1), size.width, size.height].join("|");
+      const size = contentSizes.get(CONTENT_PREFIX + id) ?? CONTENT_SIZE;
+      // key 不含尺寸：内容窗口缩放时只更新对象属性，不重建节点（避免打断 NodeResizer 拖拽）
+      const key = [CONTENT_PREFIX + id, pos.x.toFixed(1), pos.y.toFixed(1)].join("|");
       let item = cache.current.get(key);
       if (!item) {
         item = {
@@ -66,6 +68,8 @@ export function useNodes(
           height: Math.max(1, size.height),
           zIndex: 20,
         };
+      } else if (item.width !== size.width || item.height !== size.height) {
+        item = { ...item, width: Math.max(1, size.width), height: Math.max(1, size.height) };
       }
       next.set(key, item);
       nodes.push(item);

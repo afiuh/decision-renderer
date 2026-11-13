@@ -6,6 +6,7 @@ import {
   ReactFlowProvider,
   useReactFlow,
   type Node,
+  type NodeChange,
   type NodeTypes,
 } from "@xyflow/react";
 import type { TreeNode } from "@dr/shared";
@@ -57,6 +58,8 @@ function CanvasInner({ project, tree, onSelect, handleRef }: Props) {
 
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(saved.expanded ?? []));
   const [sizes, setSizes] = useState<Map<string, { width: number; height: number }>>(new Map());
+  /** 内容窗口的独立尺寸：不参与布局测量，只服务浮层缩放（NodeResizer）。 */
+  const [contentSizes, setContentSizes] = useState<Map<string, { width: number; height: number }>>(new Map());
   const [dragged, setDragged] = useState<Map<string, number>>(
     () => new Map(Object.entries(saved.dragged ?? {})),
   );
@@ -70,9 +73,9 @@ function CanvasInner({ project, tree, onSelect, handleRef }: Props) {
   const index = useMemo(() => new Map(flatten(tree).map((n) => [n.id, n])), [tree]);
   const [dragging, setDragging] = useState(false);
   const layout = useLayout(tree, expanded, sizes, dragged, dragging);
-  const nodes = useNodes(layout, index, expanded, sizes, selected, contentIds, contentPos);
+  const nodes = useNodes(layout, index, expanded, sizes, contentSizes, selected, contentIds, contentPos);
   const edges = useEdges(layout, expanded, index, contentIds);
-  const drag = useDrag({ layout, sizes, setDragged, contentPos, setContentPos, setDragging });
+  const drag = useDrag({ layout, sizes, contentSizes, setDragged, contentPos, setContentPos, setDragging });
 
   // 首次进入且没保存过展开集时，默认展开根节点
   const initialised = useRef(saved.expanded !== undefined);
@@ -154,6 +157,31 @@ function CanvasInner({ project, tree, onSelect, handleRef }: Props) {
     });
   }, []);
 
+  /** 内容窗口尺寸：独立于布局测量，只给浮层缩放用。 */
+  const measureContent = useCallback((id: string, size: { width: number; height: number }) => {
+    if (size.width < 1 || size.height < 1) return;
+    setContentSizes((prev) => {
+      const old = prev.get(id);
+      if (old && Math.abs(old.width - size.width) < 0.5 && Math.abs(old.height - size.height) < 0.5) return prev;
+      const next = new Map(prev);
+      next.set(id, size);
+      return next;
+    });
+  }, []);
+
+  /** 只接收内容窗口的尺寸变化（NodeResizer）；普通卡片不允许缩放。 */
+  const onNodesChange = useCallback((changes: NodeChange[]) => {
+    for (const c of changes) {
+      if (c.type !== "dimensions" || !c.dimensions) continue;
+      if (!c.id.startsWith(CONTENT_PREFIX)) continue;
+      setContentSizes((prev) => {
+        const next = new Map(prev);
+        next.set(c.id, { width: c.dimensions!.width, height: c.dimensions!.height });
+        return next;
+      });
+    }
+  }, []);
+
   const createChild = useCallback(async () => {
     if (!selected) {
       window.alert(`先点一个节点，再新建子节点（project=${project}）`);
@@ -209,6 +237,7 @@ function CanvasInner({ project, tree, onSelect, handleRef }: Props) {
           return next;
         }),
       measure,
+      measureContent,
       rename: (id, title) => {
         const next = window.prompt("新名称", title);
         if (!next || next === title) return;
@@ -241,7 +270,7 @@ function CanvasInner({ project, tree, onSelect, handleRef }: Props) {
         );
       },
     }),
-    [drag, toggle, open, measure, project],
+    [drag, toggle, open, measure, measureContent, project],
   );
 
   useEffect(() => {
@@ -277,6 +306,7 @@ function CanvasInner({ project, tree, onSelect, handleRef }: Props) {
         tree={tree}
         savedViewport={viewport}
         onViewport={setViewport}
+        onNodesChange={onNodesChange}
         signature={`${project}|${flatten(tree).length}`}
       />
     </CanvasContext.Provider>
@@ -290,10 +320,11 @@ interface ViewProps {
   tree: TreeNode[];
   savedViewport: { x: number; y: number; zoom: number } | null;
   onViewport: (v: { x: number; y: number; zoom: number }) => void;
+  onNodesChange: (changes: NodeChange[]) => void;
   signature: string;
 }
 
-function CanvasView({ nodes, edges, savedViewport, onViewport, signature }: ViewProps) {
+function CanvasView({ nodes, edges, savedViewport, onViewport, onNodesChange, signature }: ViewProps) {
   const { fitView, zoomTo, getViewport } = useReactFlow();
   const skipFirst = useRef(Boolean(savedViewport));
   useFitView(signature, skipFirst.current);
@@ -362,6 +393,7 @@ function CanvasView({ nodes, edges, savedViewport, onViewport, signature }: View
       <ReactFlow
         nodes={nodes}
         edges={edges}
+        onNodesChange={onNodesChange}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         nodesDraggable={false}

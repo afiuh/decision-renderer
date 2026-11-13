@@ -24,7 +24,8 @@ export function ContentNode({ id, data, selected }: NodeProps) {
       const box = b
         ? { width: b.inlineSize, height: b.blockSize }
         : { width: el.offsetWidth, height: el.offsetHeight };
-      actions.measure(id, { width: box.width, height: box.height });
+      // 内容窗口的尺寸走独立状态（contentSizes），不参与布局测量
+      actions.measureContent(id, { width: box.width, height: box.height });
     });
     ro.observe(el);
     return () => ro.disconnect();
