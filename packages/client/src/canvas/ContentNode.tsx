@@ -2,6 +2,7 @@ import { useContext, useEffect, useRef, useState } from "react";
 import { Handle, NodeResizer, Position, type NodeProps } from "@xyflow/react";
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown } from "@codemirror/lang-markdown";
+import { EditorView } from "@codemirror/view";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { TreeNode } from "@dr/shared";
@@ -58,7 +59,12 @@ export function ContentNode({ id, data, selected }: NodeProps) {
         {loading && <p className="hint">加载中…</p>}
         {error && <p className="error">{error}</p>}
         {!loading && !error && (editing ? (
-          <CodeMirror value={md} height="100%" extensions={[markdown()]} onChange={setMarkdown} />
+          <CodeMirror
+            value={md}
+            height="100%"
+            extensions={[markdown(), EditorView.lineWrapping]}
+            onChange={setMarkdown}
+          />
         ) : (
           <div className="markdown">
             <Markdown remarkPlugins={[remarkGfm]}>{md}</Markdown>
